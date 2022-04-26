@@ -1,8 +1,0 @@
-[meta] 
-name = "torchvision"
-version = "0.13.0"
-date = "20220420"
-license = "bsd3"
-maintainers = []
-systems = [ "linux" ]
-nightly_binary_hashes = "https://raw.githubusercontent.com/rehno-lindeque/ml-pkgs/master/pkgs/torchvision/nightly-binary-hashes.nix"
