@@ -8,6 +8,7 @@
             )
             ({})
         );
+        variant  = "default";
         lib      = nixpkgs.lib;
         stdenv   = nixpkgs.stdenv;
         isPy37   = nixpkgs.isPy37;
@@ -20,7 +21,7 @@
         pytorch  = nixpkgs.pytorch;
         buildPythonPackage = nixpkgs.buildPythonPackage;
     };
-    outputs = { lib, stdenv, isPy37, isPy38, isPy39, isPy310, patchelf, pillow, python, pytorch, buildPythonPackage, ... }:
+    outputs = { variant, lib, stdenv, isPy37, isPy38, isPy39, isPy310, patchelf, pillow, python, pytorch, buildPythonPackage, ... }:
         let 
             info = rec {
                 name = "torchvision";

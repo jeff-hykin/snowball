@@ -6,9 +6,9 @@ package_path="$PWD/$1"
 variant="$2"
 info_path="$(dirname "$package_path")/variants/$variant.json"
 mkdir -p "$(dirname "$info_path")"
-NO_COLOR="true" deno eval "console.log(JSON.stringify(JSON.parse($(ARG1="$package_path" nix eval '(let 
+NO_COLOR="true" deno eval "console.log(JSON.stringify(JSON.parse($(ARG1="$package_path" ARG2="$variant" nix eval '(let 
         snowball = (builtins.import (builtins.getEnv ("ARG1")));
-        outputs = (snowball.outputs (snowball.inputs));
+        outputs = (snowball.outputs (snowball.inputs // { variant = (builtins.getEnv ("ARG2")); }));
     in
         (builtins.toJSON (outputs.info))
 )')),0,4))" > "$info_path"
