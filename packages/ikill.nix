@@ -31,7 +31,7 @@
         lib = nixpkgs.lib;
     };
     outputs = { meta, inputs, ... }: rec {
-        preflakePackage = inputs.rustPlatform.buildRustPackage rec {
+        preflakePackage = inputs.rustPlatform.buildRustPackage  {
             pname = meta.name;
             version = meta.version;
             src = (inputs.fetchFromGitHub (meta.github));
