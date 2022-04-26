@@ -52,7 +52,7 @@
             meta = meta;
         };
         nixShell = {
-            buildInputs = [ preflakePackage ] ++ macOS.buildInputs;
+            buildInputs = [ preflakePackage ] ++ inputs.macOS.buildInputs;
         };
     };
 }
