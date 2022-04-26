@@ -1,21 +1,4 @@
 {
-    meta = {
-        name = "ikill";
-        version = "v1.5.0";
-        description = "Interactively kill running processes, inspired by fkill-cli";
-        homepage = "https://github.com/pjmp/ikill";
-        license = "mit";
-        maintainers = [ ];
-        github = {
-            owner = "pjmp";
-            repo = "ikill";
-            rev = "v1.5.0";
-            sha256 = "0hpq7x9qk7cga26385phbsqaz100ipngnj0gh2zys43bg466w4dk";
-        };
-        cargoPackage = {
-            sha256 = "1937lpvwnw4cbdk9aivrga3d1m30chkaxwlg2n3j0ybik8lp42b7";
-        };
-    };
     inputs = rec {
         nixpkgs = (builtins.import
             (builtins.fetchTarball 
@@ -43,6 +26,7 @@
                 { nativeBuildInputs = []; }
             ;
     };
+    
     outputs = { meta, inputs, ... }: rec {
         preflakePackage = inputs.rustPlatform.buildRustPackage  {
             pname = meta.name;
