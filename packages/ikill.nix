@@ -29,6 +29,19 @@
         rustPlatform = nixpkgs.rustPlatform;
         fetchFromGitHub = nixpkgs.fetchFromGitHub;
         lib = nixpkgs.lib;
+        
+        macOS =
+            if
+                nixpkgs.stdenv.isDarwin
+            then
+                {
+                    buildInputs = [ 
+                        nixpkgs.darwin.apple_sdk.frameworks.IOKit
+                    ];
+                }
+            else
+                { buildInputs = []; }
+            ;
     };
     outputs = { meta, inputs, ... }: rec {
         preflakePackage = inputs.rustPlatform.buildRustPackage  {
@@ -39,7 +52,7 @@
             meta = meta;
         };
         nixShell = {
-            buildInputs = [ preflakePackage ];
+            buildInputs = [ preflakePackage ] ++ macOS.buildInputs;
         };
     };
 }
