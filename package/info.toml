@@ -1,17 +1,17 @@
 [meta] 
-name = "salt"
-version = "v0.2.3"
-description = "Fast and simple task management from the CLI."
-homepage = "https://github.com/Milo123459/salt"
+name = "ikill"
+version = "v1.5.0"
+description = "Interactively kill running processes, inspired by fkill-cli"
+homepage = "https://github.com/pjmp/ikill"
 license = "mit"
 maintainers = []
 systems = [ "linux" ]
 
 [meta.github]
-owner = "Milo123459"
-repo = "salt"
-rev = "v0.2.3"
-sha256 = "1d17lxz8kfmzybbpkz1797qkq1h4jwkbgwh2yrwrymraql8rfy42"
+owner = "pjmp"
+repo = "ikill"
+rev = "v1.5.0"
+sha256 = "0hpq7x9qk7cga26385phbsqaz100ipngnj0gh2zys43bg466w4dk"
 
 [meta.cargoPackage]
-sha256 = "1615z6agnbfwxv0wn9xfkh8yh5waxpygv00m6m71ywzr49y0n6h6"
+sha256 = "1937lpvwnw4cbdk9aivrga3d1m30chkaxwlg2n3j0ybik8lp42b7"
