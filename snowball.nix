@@ -10,3 +10,6 @@ url :
         );
     in
         outputs
+        # function
+        # nixShell
+        # package0
