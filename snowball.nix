@@ -9,4 +9,4 @@ url :
             })
         );
     in
-        outputs.nixShell
+        outputs
