@@ -5,6 +5,7 @@ description = "Fast and simple task management from the CLI."
 homepage = "https://github.com/Milo123459/salt"
 license = "mit"
 maintainers = []
+systems = [ "linux" ]
 
 [meta.github]
 owner = "Milo123459"

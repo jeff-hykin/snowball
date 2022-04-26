@@ -26,9 +26,8 @@
                 { nativeBuildInputs = []; }
             ;
     };
-    
     outputs = { meta, inputs, ... }: rec {
-        preflakePackage = inputs.rustPlatform.buildRustPackage  {
+        package0 = inputs.rustPlatform.buildRustPackage  {
             pname = meta.name;
             version = meta.version;
             src = (inputs.fetchFromGitHub (meta.github));
@@ -37,7 +36,7 @@
         };
         nixShell = {
             nativeBuildInputs = inputs.macOS.nativeBuildInputs;
-            buildInputs = [ preflakePackage ];
+            buildInputs = [ package0 ];
         };
     };
 }
