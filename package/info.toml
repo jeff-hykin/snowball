@@ -5,7 +5,7 @@ description = "Interactively kill running processes, inspired by fkill-cli"
 homepage = "https://github.com/pjmp/ikill"
 license = "mit"
 maintainers = []
-systems = [ "linux" ]
+systems = [ "x86_64-linux" ]
 
 [meta.github]
 owner = "pjmp"
