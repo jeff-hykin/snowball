@@ -20,7 +20,7 @@
             };
         in
             {
-                variant  = "default";
+                variant  = "_";
                 stdenv             = nixpkgs.stdenv;
                 lib                = nixpkgs.lib;
                 callPackage        = nixpkgs.callPackage;
