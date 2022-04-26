@@ -1,4 +1,6 @@
 {
+    # snowball = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/29a4cb39d8db70f9b6d13f52b3a37a03aae48819/snowball.nix")
+    # ikill = snowball "https://raw.githubusercontent.com/jeff-hykin/snowball/283c245be12fe40d4ff2b7402e9de06ae9baf698/"
     inputs = rec {
         nixpkgs = (builtins.import
             (builtins.fetchTarball 
