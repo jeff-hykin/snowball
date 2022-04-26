@@ -1,107 +1,125 @@
 {
     # snowball = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/29a4cb39d8db70f9b6d13f52b3a37a03aae48819/snowball.nix")
     # ikill = snowball "https://raw.githubusercontent.com/jeff-hykin/snowball/283c245be12fe40d4ff2b7402e9de06ae9baf698/"
-    inputs = rec {
-        nixpkgs = (builtins.import
-            (builtins.fetchTarball 
-                ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/85a130db2a80767465b0b8a99e772595e728b2e4.tar.gz";
-                })
-            )
-            ({})
-        );
-        variant  = "default";
-        lib      = nixpkgs.lib;
-        stdenv   = nixpkgs.stdenv;
-        isPy37   = nixpkgs.isPy37;
-        isPy38   = nixpkgs.isPy38;
-        isPy39   = nixpkgs.isPy39;
-        isPy310  = nixpkgs.isPy310;
-        patchelf = nixpkgs.patchelf;
-        pillow   = nixpkgs.pillow;
-        python   = nixpkgs.python;
-        pytorch  = nixpkgs.pytorch;
-        buildPythonPackage = nixpkgs.buildPythonPackage;
-    };
-    outputs = { variant, lib, stdenv, isPy37, isPy38, isPy39, isPy310, patchelf, pillow, python, pytorch, buildPythonPackage, ... }:
+    inputs = 
         let 
-            info = rec {
-                name = "torchvision";
-                version = "0.13.0";
-                description = "PyTorch vision library";
-                homepage = "https://pytorch.org/";
-                changelog = "https://github.com/pytorch/vision/releases/tag/v${version}";
-                date = "20220420";
-                license = {
-                    deprecated = false;
-                    free = true;
-                    fullName = "BSD 3-clause \"New\" or \"Revised\" License";
-                    redistributable = true;
-                    shortName = "bsd3";
-                    spdxId = "BSD-3-Clause";
-                    url = "https://spdx.org/licenses/BSD-3-Clause.html";
-                }; # see lib.licenses to see whats available
-                maintainers = [];
-                platforms = [
-                    [ "x86_64-linux" ]
-                    # "aarch64-linux"
-                    # "armv7a-linux"
-                    # "armv7l-linux"
-                    
-                    # print lib.platforms.linux to see whats available
-                ];
-                nightly_binary_hashes = "https://raw.githubusercontent.com/rehno-lindeque/ml-pkgs/master/pkgs/torchvision/nightly-binary-hashes.nix";
-            };
-            srcs = (builtins.import
-                (builtins.fetchurl (info.nightly_binary_hashes))
-                ({
-                    version = info.version;
-                    date = info.date;
-                })
+            nixpkgs = (builtins.import
+                (builtins.fetchTarball 
+                    ({
+                        url = "https://github.com/NixOS/nixpkgs/archive/85a130db2a80767465b0b8a99e772595e728b2e4.tar.gz";
+                    })
+                )
+                ({})
             );
-            rpath       = lib.makeLibraryPath [ stdenv.cc.cc.lib ];
-            pyVerNoDot  = builtins.replaceStrings [ "." ] [ "" ] python.pythonVersion;
-            unsupported = throw "Unsupported system";
-            
-            package0 = buildPythonPackage  {
-                version = "${info.version}-${info.date}";
+            arch = nixpkgs.rust.toRustTarget nixpkgs.stdenv.hostPlatform;
+            fetch_librusty_v8 = args: nixpkgs.fetchurl {
+                name = "librusty_v8-${args.version}";
+                url = "https://github.com/denoland/rusty_v8/releases/download/v${args.version}/librusty_v8_release_${arch}.a";
+                sha256 = args.shas.${nixpkgs.stdenv.hostPlatform.system};
+                meta = { inherit (args) version; };
+            };
+        in
+            {
+                variant  = "_";
+                stdenv             = nixpkgs.stdenv;
+                lib                = nixpkgs.lib;
+                callPackage        = nixpkgs.callPackage;
+                fetchFromGitHub    = nixpkgs.fetchFromGitHub;
+                rustPlatform       = nixpkgs.rustPlatform;
+                installShellFiles  = nixpkgs.installShellFiles;
+                libiconv           = nixpkgs.libiconv;
+                libobjc            = nixpkgs.libobjc;
+                Security           = nixpkgs.Security;
+                CoreServices       = nixpkgs.CoreServices;
+                Metal              = nixpkgs.Metal;
+                Foundation         = nixpkgs.Foundation;
+                QuartzCore         = nixpkgs.QuartzCore;
+                librusty_v8        = (nixpkgs.fetch_librusty_v8 ({}));
+            };
+    outputs = { variant, stdenv, lib, callPackage, fetchFromGitHub, rustPlatform, installShellFiles, libiconv, libobjc, Security, CoreServices, Metal, Foundation, QuartzCore, librusty_v8, ... }:
+        let 
+            version = "1.21.0";
+            info = {
+                name = "deno";
+                version = version;
+                homepage = "https://deno.land/";
+                changelog = "https://github.com/denoland/deno/releases/tag/v${version}";
+                description = "A secure runtime for JavaScript and TypeScript";
+                longDescription = ''
+                    Deno aims to be a productive and secure scripting environment for the modern programmer.
+                    Deno will always be distributed as a single executable.
+                    Given a URL to a Deno program, it is runnable with nothing more than the ~15 megabyte zipped executable.
+                    Deno explicitly takes on the role of both runtime and package manager.
+                    It uses a standard browser-compatible protocol for loading modules: URLs.
+                    Among other things, Deno is a great replacement for utility scripts that may have been historically written with
+                    bash or python.
+                '';
+                license = lib.licenses.mit;
+                maintainers = [ lib.maintainers.jk ];
+                platforms = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+            };
+            package0 = rustPlatform.buildRustPackage rec {
                 pname = info.name;
-                format = "wheel";
-                
-                disabled = !(isPy37 || isPy38 || isPy39 || isPy310);
-                src = (builtins.fetchurl (srcs."${stdenv.system}-${pyVerNoDot}") || unsupported);
-                
-                nativeBuildInputs = [
-                    patchelf
-                ];
-                propagatedBuildInputs = [
-                    pillow
-                    pytorch
-                ];
+                version = info.version;
 
-                # The wheel-binary is not stripped to avoid the error of `ImportError: libtorch_cuda_cpp.so: ELF load command address/offset not properly aligned.`.
-                dontStrip = true;
+                src = fetchFromGitHub {
+                    owner = "denoland";
+                    repo = info.name;
+                    rev = "v${info.version}";
+                    sha256 = "sha256-Sv9Keb+6vc6Lr+H/gAi9/4bmBO18gv9bqAjBIpOrtnk=";
+                };
+                cargoSha256 = "sha256-EykIg8rU2VBag+3834SwMYkz9ZR6brOo/0NXXvrGqsU=";
 
-                pythonImportsCheck = [ "torchvision" ];
-
-                postFixup = ''
-                    # Note: after patchelf'ing, libcudart can still not be found. However, this should
-                    #       not be an issue, because PyTorch is loaded before torchvision and brings
-                    #       in the necessary symbols.
-                    patchelf --set-rpath "${rpath}:${pytorch}/${python.sitePackages}/torch/lib:" \
-                    "$out/${python.sitePackages}/torchvision/_C.so"
+                postPatch = ''
+                    # upstream uses lld on aarch64-darwin for faster builds
+                    # within nix lld looks for CoreFoundation rather than CoreFoundation.tbd and fails
+                    substituteInPlace .cargo/config --replace '"-C", "link-arg=-fuse-ld=lld"' ""
                 '';
 
-                meta = with lib; {
-                    description = info.description;
-                    homepage = info.homepage;
-                    changelog = info.changelog;
-                    # Includes CUDA and Intel MKL, but redistributions of the binary are not limited.
-                    # https://docs.nvidia.com/cuda/eula/index.html
-                    # https://www.intel.com/content/www/us/en/developer/articles/license/onemkl-license-faq.html
-                    license = info.license;
-                    platforms = info.platforms;
-                    maintainers = with maintainers; [];
+                # Install completions post-install
+                nativeBuildInputs = [ installShellFiles ];
+
+                buildAndTestSubdir = "cli";
+
+                buildInputs = lib.optionals stdenv.isDarwin [ libiconv libobjc Security CoreServices Metal Foundation QuartzCore ];
+
+                # The v8 package will try to download a `librusty_v8.a` release at build time to our read-only filesystem
+                # To avoid this we pre-download the file and export it via RUSTY_V8_ARCHIVE
+                RUSTY_V8_ARCHIVE = librusty_v8;
+
+                # Tests have some inconsistencies between runs with output integration tests
+                # Skipping until resolved
+                doCheck = false;
+
+                preInstall = ''
+                    find ./target -name libswc_common${stdenv.hostPlatform.extensions.sharedLibrary} -delete
+                '';
+
+                postInstall = ''
+                    installShellCompletion --cmd deno \
+                    --bash <($out/bin/deno completions bash) \
+                    --fish <($out/bin/deno completions fish) \
+                    --zsh <($out/bin/deno completions zsh)
+                '';
+
+                doInstallCheck = true;
+                installCheckPhase = ''
+                    runHook preInstallCheck
+                    $out/bin/deno --help
+                    $out/bin/deno --version | grep "deno ${info.version}"
+                    runHook postInstallCheck
+                '';
+
+                passthru.updateScript =  (builtins.fetchurl (https://raw.githubusercontent.com/NixOS/nixpkgs/d7ca105981b7249338a278ac96b6afad6affb338/pkgs/development/web/deno/update/update.ts));
+
+                meta = {
+                    homepage        = info.homepage;
+                    changelog       = info.changelog;
+                    description     = info.description;
+                    longDescription = info.longDescription;
+                    license         = info.license;
+                    maintainers     = info.maintainers;
+                    platforms       = info.platforms;
                 };
             };
         in
