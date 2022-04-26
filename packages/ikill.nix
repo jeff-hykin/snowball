@@ -35,12 +35,12 @@
                 nixpkgs.stdenv.isDarwin
             then
                 {
-                    buildInputs = [ 
+                    nativeBuildInputs = [ 
                         nixpkgs.darwin.apple_sdk.frameworks.IOKit
                     ];
                 }
             else
-                { buildInputs = []; }
+                { nativeBuildInputs = []; }
             ;
     };
     outputs = { meta, inputs, ... }: rec {
@@ -52,7 +52,8 @@
             meta = meta;
         };
         nixShell = {
-            buildInputs = [ preflakePackage ] ++ inputs.macOS.buildInputs;
+            nativeBuildInputs = inputs.macOS.nativeBuildInputs;
+            buildInputs = [ preflakePackage ];
         };
     };
 }
