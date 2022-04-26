@@ -1,0 +1,6 @@
+- nix-env -i -f "$(curl -fsSL https://raw.githubusercontent.com/jeff-hykin/snowball/3df028e5d9e92dbe077ce34f6907da852e61895a/)"
+- create a rust cargo package that builds a binary that wraps that ^ command up for snowballs (get the snowball, get package0, build the derivation, then install the derivation)
+- write a script in deno for bumping the info.toml verison and adding git tags
+- start a package index system by downloading everyones repo, scanning for git tags, and then adding the package/info.toml at that point to a folder, then running an automated indexer on all the toml files
+- have the index search spit out a snowball URL once its found
+- (DONE)
