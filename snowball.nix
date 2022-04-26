@@ -1,13 +1,10 @@
 url : 
     let 
-        snowball =  (builtins.import
-            (builtins.toPath
-                "${builtins.fetchurl url}"
-            )
-        );
+        meta = (builtins.fromTOML (builtins.fetchurl "${url}/package/info.toml"));
+        snowball = (builtins.import (builtins.fetchurl "${url}/package/snowball.nix"));
         outputs = (snowball.outputs 
             ({
-                meta = snowball.meta;
+                meta = meta;
                 inputs = snowball.inputs;
             })
         );
