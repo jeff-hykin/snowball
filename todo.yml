@@ -26,5 +26,6 @@
         - which will create a virkshop/system.nix file if it doesnt exist
         - and then print out a message for adding the a line to the virkshop/system.nix
         - that line will use the snowball tool, and will have an inputs and outputs section
+        - allow for a "disabled" input so they can be turned off depending on the platform
         - under the hood the snowball tool will be intercepting the arguments, checking if they're a snowball, and then giving the package0 as the actual inputs for the being-loaded snowball
         - this will result in a nice flat structure that still allows for overriding/overlaying inputs
