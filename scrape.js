@@ -4,6 +4,7 @@ const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo,
 const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.24/main/console.js`)
 
+const scanFolder = `./scrape`
 
 Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
@@ -48,7 +49,7 @@ function* binaryListOrder(aList, ) {
     }
 }
 
-const allPackgeInfoPath = `./scan/allPackageInfo/`
+const allPackgeInfoPath = `${scanFolder}/allPackageInfo/`
 async function getAllPackageInfo(hash) {
     const path = `${allPackgeInfoPath}/${hash}.json`
     let output = await jsonRead(path)
@@ -210,7 +211,7 @@ const allPackages = {}
 async function asyncAddPackageInfo(newPackageInfo, source) {
     const packageName = newPackageInfo.frozen.name
     const hashValue = hashJsonPrimitive(newPackageInfo.frozen)
-    const filePath = `./scan/packages/${packageName}/${hashValue}.json`
+    const filePath = `${scanFolder}/packages/${packageName}/${hashValue}.json`
     let stringOutput = await FileSystem.read(filePath)
     
     // create package if doesn't exist
@@ -248,20 +249,22 @@ async function asyncAddPackageInfo(newPackageInfo, source) {
     })
 }
 
-const pathToAllCommits = `./scan/allCommits.txt`
+const pathToAllCommits = `${scanFolder}/allCommits.txt`
 async function getPathToAllCommitHashes() {
     const fileInfo = await FileSystem.info(pathToAllCommits)
     if (fileInfo.isFile) {
         return pathToAllCommits
     } else {
         console.log(`writing commits to:`, pathToAllCommits)
-        await run`git log --first-parent --date=short --pretty=format:%H#%ad ${Stdout(Overwrite(pathToAllCommits))}`
+        const path = Deno.makeTempDir()
+        await run`git clone https://github.com/NixOS/nixpkgs.git ./nixpkgs ${Cwd(path)}`
+        await run`git log --first-parent --date=short --pretty=format:%H#%ad ${Cwd(`${path}/nixpkgs`)} ${Stdout(Overwrite(pathToAllCommits))}`
     }
     return pathToAllCommits
 }
 
-const progressFile = `./scan/progress.json`
-const commitsFile = `./scan/allCommits.json`
+const progressFile = `${scanFolder}/progress.json`
+const commitsFile = `${scanFolder}/allCommits.json`
 let progress
 let commitToDate = {}
 async function* iterateAllCommitHashes() {
