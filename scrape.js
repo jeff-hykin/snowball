@@ -271,8 +271,8 @@ async function getPathToAllCommitHashes() {
     return pathToAllCommits
 }
 
-const progressFile = `./scan/progress.json`
-const commitsFile = `./scan/allCommits.json`
+const progressFile = `${scanFolder}/progress.json`
+const commitsFile = `${scanFolder}/allCommits.json`
 let progress
 let commitToDate = {}
 async function* iterateAllCommitHashes() {
