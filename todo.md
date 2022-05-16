@@ -1,4 +1,6 @@
+- create one big repo that imports all the little ones
 - for every package create a folder
+    - create an entry in the big repo that imports this one and overlays it with all the changes in the big repo
     - create a package.nix, have it look like a flake
         - as input, have the current folder/system
         - as output
@@ -9,7 +11,7 @@
     - create a conversion-help.nix that tries to convert the args of a default.nix function into a flake-like format
     - create an `examples.nix`
     - create `metadata/`
-- create one big repo that imports all the little ones
+    
 - have the search results
     - buttons for:
         - install to system
