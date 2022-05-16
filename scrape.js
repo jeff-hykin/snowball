@@ -79,7 +79,7 @@ async function getPackageJsonFor(packageAttrPath, hash) {
     return JSON.parse(jsonString)[packageAttrPath]
 }
 
-function convertPackageInfo(attrName, packageInfo) {
+async function convertPackageInfo(attrName, packageInfo, commitHash) {
     const output = {
         frozen: {
             name: "",
@@ -133,12 +133,13 @@ function convertPackageInfo(attrName, packageInfo) {
         }
     }
     
+    // for some reason, some packages just don't include meta in their query
+    // make no mistake: they still have a meta, its just nix-env -qa doesn't return it for whatever reason
     if (packageInfo.meta == null) {
-        console.debug(`packageInfo is:`,packageInfo)
-        Deno.exit()
+        packageInfo.meta = await manuallyGetMeta(attrName, commitHash)
     }
 
-    output.frozen.license = packageInfo.meta.license
+    output.frozen.license          = packageInfo.meta.license
     output.frozen.shortDescription = packageInfo.meta.description
     output.frozen.longDescription  = packageInfo.meta.longDescription
     output.frozen.homepage         = packageInfo.meta.homepage
@@ -270,8 +271,8 @@ async function getPathToAllCommitHashes() {
     return pathToAllCommits
 }
 
-const progressFile = `${scanFolder}/progress.json`
-const commitsFile = `${scanFolder}/allCommits.json`
+const progressFile = `./scan/progress.json`
+const commitsFile = `./scan/allCommits.json`
 let progress
 let commitToDate = {}
 async function* iterateAllCommitHashes() {
@@ -299,6 +300,19 @@ async function* iterateAllCommitHashes() {
     }
 }
 
+async function manuallyGetMeta(packageAttrPath, commitHash) {
+    const parseTwiceJson = await run`nix eval ${`(
+            let 
+                pkgs = (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/${commitHash}.tar.gz";}) ) ({}));
+            in
+                (builtins.toJSON
+                    pkgs.${packageAttrPath}.meta
+                )
+        )`} ${Stdout(returnAsString)}
+    `
+    return JSON.parse(JSON.parse(parseTwiceJson))
+}
+
 
 // 
 // main algo
@@ -320,7 +334,7 @@ for await (const commitHash of iterateAllCommitHashes()) {
             if (loopNumber % 500 == 0) {
                 console.log(`    ${`${loopNumber}`.padStart(attributesNumberLength)}/${entries.length}: ${  `${ Math.round((loopNumber/entries.length)*100)}`  }%`)
             }
-            const packageFixedInfo = convertPackageInfo(attrName, packageInfo)
+            const packageFixedInfo = await convertPackageInfo(attrName, packageInfo, commitHash)
 
             waitingGroup.push(
                 asyncAddPackageInfo(
