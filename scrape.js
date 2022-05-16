@@ -264,6 +264,8 @@ async function getPathToAllCommitHashes() {
         const path = Deno.makeTempDir()
         await run`git clone https://github.com/NixOS/nixpkgs.git ./nixpkgs ${Cwd(path)}`
         await run`git log --first-parent --date=short --pretty=format:%H#%ad ${Cwd(`${path}/nixpkgs`)} ${Stdout(Overwrite(pathToAllCommits))}`
+        // clean up
+        await FileSystem.remove(path)
     }
     return pathToAllCommits
 }
