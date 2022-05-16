@@ -331,31 +331,31 @@ for await (const commitHash of iterateAllCommitHashes()) {
         let loopNumber = 0
         for (const [attrName, packageInfo] of entries) {
             loopNumber += 1
-            if (loopNumber % 500 == 0) {
-                console.log(`    ${`${loopNumber}`.padStart(attributesNumberLength)}/${entries.length}: ${  `${ Math.round((loopNumber/entries.length)*100)}`  }%`)
-            }
-            const packageFixedInfo = await convertPackageInfo(attrName, packageInfo, commitHash)
+            try {
+                if (loopNumber % 500 == 0) {
+                    console.log(`    ${`${loopNumber}`.padStart(attributesNumberLength)}/${entries.length}: ${  `${ Math.round((loopNumber/entries.length)*100)}`  }%`)
+                }
+                const packageFixedInfo = await convertPackageInfo(attrName, packageInfo, commitHash)
 
-            waitingGroup.push(
-                asyncAddPackageInfo(
-                    packageFixedInfo,
-                    {
-                        git: `https://github.com/NixOS/nixpkgs.git`,
-                        commit: commitHash,
-                        attributePath: attrName.split("."),
-                        position: typeof packageInfo.meta.position == 'string' ? packageInfo.meta.position.replace(/\/nix\/store.+\/nixpkgs\//,"") : null,
-                        date: commitToDate[commitHash],
-                        // path: packageInfo.meta.position.replace(/\/nix\/store.+\/nixpkgs\/(.+)(:\d+)?$/,"$1"),
-                    }
+                waitingGroup.push(
+                    asyncAddPackageInfo(
+                        packageFixedInfo,
+                        {
+                            git: `https://github.com/NixOS/nixpkgs.git`,
+                            commit: commitHash,
+                            attributePath: attrName.split("."),
+                            position: typeof packageInfo.meta.position == 'string' ? packageInfo.meta.position.replace(/\/nix\/store.+\/nixpkgs\//,"") : null,
+                            date: commitToDate[commitHash],
+                            // path: packageInfo.meta.position.replace(/\/nix\/store.+\/nixpkgs\/(.+)(:\d+)?$/,"$1"),
+                        }
+                    )
                 )
-            )
-            if (waitingGroup.length > concurrentSize) {
-                try {
+                if (waitingGroup.length > concurrentSize) {
                     await Promise.all(waitingGroup)
                     waitingGroup.splice(0,Infinity)
-                } catch (error) {
-                    console.warn(`    error with package: ${attrName}`, error)
                 }
+            } catch (error) {
+                console.warn(`    error with package: ${attrName}`, error)
             }
         }
         progress.completedHashes.push(commitHash)
