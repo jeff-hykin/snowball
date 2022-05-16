@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="stylesheet" href="https://unpkg.com/css-baseline/css/4.css">
+    </head>
+    <body style="height: 100vh; overflow: auto; width: 99vw;">
+    </body>
+    <script> ;((async ()=>{
+        
+        
+        const indexName = "packages"
+        
+        const post = ({data=null, to=null}) => new Promise(
+            function (resolve, reject) {
+                let the_request = new XMLHttpRequest()
+                the_request.onload = function () {
+                    if (this.status >= 200 && this.status < 300) {
+                        try { var output_ = JSON.parse(the_request.responseText) }
+                        catch (error) { var output_ = the_request.responseText }
+                        resolve(output_)
+                    }
+                    else {
+                        reject({
+                                status: this.status,
+                                statusText: the_request.statusText
+                            })
+                    }
+                }
+                the_request.onerror = function () {
+                    reject({
+                            status: this.status,
+                            statusText: the_request.statusText
+                        })
+                }
+                the_request.open("POST", to, true)
+                the_request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8')
+                the_request.send(JSON.stringify(data))
+            })
+        
+        
+        window.search = ({
+            q= null, //	Query string (mandatory)	""
+            offset= 0, //	Number of documents to skip	0
+            limit= 20, //	Maximum number of documents returned	20
+            filter= null, //	Filter queries by an attribute's value	null
+            facetsDistribution= null, //	Display the count of matches per facet	null
+            attributesToRetrieve= ["*"], //	Attributes to display in the returned documents	["*"]
+            attributesToCrop= null, //	Attributes whose values have to be cropped	null
+            cropLength= 10, //	Maximum length of cropped value in words	10
+            cropMarker= '…', //	String marking crop boundaries	"…"
+            attributesToHighlight= null, //	Highlight matching terms contained in an attribute	null
+            highlightPreTag= "<em>", //	String inserted at the start of a highlighted term	"<em>"
+            highlightPostTag= "</em>", //	String inserted at the end of a highlighted term	"</em>"
+            matches= false, //	Return matching terms location	false
+            sort= null, //	Sort search results by an attribute's value	null
+        })=> post({ to: `http://localhost:7700/indexes/${indexName}/search`, data: {
+            q,
+            offset,
+            limit,
+            filter,
+            facetsDistribution,
+            attributesToRetrieve,
+            attributesToCrop,
+            cropLength,
+            cropMarker,
+            attributesToHighlight,
+            highlightPreTag,
+            highlightPostTag,
+            matches,
+            sort,
+        } })
+        
+        
+        var { Elemental, html } = await import("https://cdn.skypack.dev/@!!!!!/elemental@0.0.13")
+        var { Event, trigger, everyTime, once } = await import("https://deno.land/x/good@0.5.4/events.js")
+        
+        // container helper
+        html = html.extend({
+            container: ({style, children, ...props})=>html`<div style=${`display: flex; flex-direction: column; justify-content: center; justify-items: center; align-items: center; ${style}`} ...${props} >
+                ${children}
+            </div>`,
+            attribute: ({style, children, name, value, ...props})=>html`<span style="padding: 0.4rem; font-size: 1.1rem;" ...${props}>
+                <span style="font-weight: bold;">${name}:</span> ${value}
+            </span>`,
+            result: ({style, children, frozen, flexible, ...props})=>{
+                const element = html`
+                    <container style="
+                            align-items: flex-start;
+                            width: 33rem;
+                            height: fit-content;
+                            background: white;
+                            border-radius: 2rem;
+                            padding: 2rem 1.3rem;
+                            box-shadow: rgb(0 0 0 / 0%) -2px 0 1px 2px, rgb(0 0 0 / 12%) 0px 9px 33px -7px, rgb(0 0 0 / 20%) 0px 3px 15px -7px;
+                            transition: all 0.5s ease-in-out 0s;
+                            opacity: 0;
+                            overflow: auto;
+                            margin-bottom: 1.5rem;
+                        ">
+                            <container style="padding: 1rem; align-items: flex-start;">
+                                <attribute name="Name" value=${frozen.name} />
+                                <attribute name="Version" value=${frozen.versionString} />
+                            </container>
+                            <code style="background: lightgray; border-radius: 4px; white-space: pre; overflow: auto; width: 95%; margin: 0.4rem; padding: 1.2rem 0.3rem;">
+                                ${JSON.stringify(frozen,0,4)}
+                            </code>
+                    </container>
+                `
+                setTimeout(()=>element.style.opacity = 1, 1)
+                return element
+            },
+        })
+        
+        const event = {
+            searchResultsReturned: new Event(),
+        }
+        
+
+        // export const input = ({style, children, ...props})=>html`<input class="tutorialize-input" ...${props} />`
+        
+        let searchBox, resultsBox
+        const main = html`
+            <main style="width: 100%; background: whitesmoke; height: fit-content; min-height: 100%;">
+                <container style="height: 20vh; min-height: 12rem;">
+                </container>
+                <container>
+                    <h1 style="margin-bottom: 2rem; font-weight: thin;">Fornix</h1>
+                    <div>
+                        ${ searchBox = html`
+                            <input
+                                style="width: 35rem; border-radius: 4px; box-shadow: rgb(0 0 0 / 0%) -2px 0 1px 2px, rgb(0 0 0 / 12%) 0px 9px 33px -7px, rgb(0 0 0 / 20%) 0px 3px 15px -7px;"
+                                focus
+                                oninput=${async()=>{
+                                    console.log(`triggering search results for ${searchBox.value}`)
+                                    searchBox.results = (await search({q:searchBox.value})).hits
+                                    trigger(event.searchResultsReturned)
+                                }}
+                                />
+                        `}
+                    </div>
+                        ${resultsBox = html`
+                            <container style="height: max-content; padding: 2rem;">
+                                Results
+                            </container>
+                        `}
+                </container>
+            </main>
+        `
+        document.body.appendChild(main)
+        
+        everyTime(event.searchResultsReturned).then(()=>{
+            resultsBox.innerHTML = ""
+            for (const each of searchBox.results) {
+                resultsBox.appendChild(html`<result ...${each}>`)
+            }
+        })
+        
+        function createResultElement(result) {
+            
+        }
+    }))()</script>
+</html>
