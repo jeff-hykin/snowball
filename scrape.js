@@ -3,8 +3,8 @@
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
 const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.24/main/console.js`)
+const { scanFolder, hashJsonPrimitive } = await import(`./tools`)
 
-const scanFolder = `./data.ignore/scan`
 const scanExists = (await FileSystem.info(scanFolder)).isFolder
 if (!scanExists) {
     await FileSystem.remove(scanFolder)
@@ -209,9 +209,6 @@ async function convertPackageInfo(attrName, packageInfo, commitHash) {
     //     }
     // }
 }
-
-import { createHash } from "https://deno.land/std@0.139.0/hash/mod.ts"
-const hashJsonPrimitive = (value) => createHash("md5").update(JSON.stringify(value)).toString()
 
 const allPackages = {}
 async function asyncAddPackageInfo(newPackageInfo, source) {

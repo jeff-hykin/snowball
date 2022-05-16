@@ -5,7 +5,7 @@ import { FileSystem } from' https://deno.land/x/quickr@0.3.24/main/file_system.j
 import { Console, yellow } from' https://deno.land/x/quickr@0.3.24/main/console.js'
 // import { MeiliSearch } from "./node_modules/meilisearch/dist/bundles/meilisearch.esm.min.js"
 import { MeiliSearch } from "./meilisearch.js"
-import { hashJsonPrimitive } from "./tools.js"
+import { hashJsonPrimitive, scanFolder } from "./tools.js"
 
 const client = new MeiliSearch({ host: 'http://127.0.0.1:7700' })
 
@@ -21,7 +21,7 @@ function addToDatabase(packageObject) {
     ])
 }
 
-const allPackageJsonPaths = await FileSystem.recursivelyListPathsIn(`scan/packages`)
+const allPackageJsonPaths = await FileSystem.recursivelyListPathsIn(`${scanFolder}/packages`)
 console.debug(`allPackageJsonPaths.length is:`,allPackageJsonPaths.length)
 for (const eachPath of allPackageJsonPaths) {
     if (eachPath.slice(-5) !== '.json') {
