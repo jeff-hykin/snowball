@@ -1,0 +1,18 @@
+- for every package create a folder
+    - create a package.nix, have it look like a flake
+        - as input, have the current folder/system
+        - as output
+            - import the package from the existing nixpkgs url
+            - overlay it with anything in the current system
+    - create a tools.nix for exporting nix-functions instead of derivations
+    - copy the source file (probably default.nix) to the same directory
+    - create a conversion-help.nix that tries to convert the args of a default.nix function into a flake-like format
+    - create an `examples.nix`
+    - create `metadata/`
+- create one big repo that imports all the little ones
+- have the search results
+    - buttons for:
+        - install to system
+        - install to project
+        - use inside a nix file (hover/click=>copy-paste)
+    - have all those^ link to the branches instead of nixpkgs directly
