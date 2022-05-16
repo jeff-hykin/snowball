@@ -4,7 +4,12 @@ const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo,
 const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.24/main/console.js`)
 
-const scanFolder = `./scrape`
+const scanFolder = `./data.ignore/scan`
+const scanExists = (await FileSystem.info(scanFolder)).isFolder
+if (!scanExists) {
+    await FileSystem.remove(scanFolder)
+    await run`git clone https://github.com/jeff-hykin/nix-version.git ./${scanFolder}/..`
+}
 
 Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
