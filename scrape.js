@@ -277,7 +277,7 @@ let progress
 let commitToDate = {}
 async function* iterateAllCommitHashes() {
     console.log(`reading in progress file`)
-    progress = JSON.parse(`${await FileSystem.read(progressFile)}`)
+    progress = await jsonRead(progressFile)
     if (progress == null) {
         progress = {
             completedHashes: [],
