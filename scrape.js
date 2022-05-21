@@ -13,6 +13,7 @@ if (!scanExists) {
 
 Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
+Console.env.NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1"
 Console.env.NIX_PATH = ""
 Console.env.HOME = FileSystem.thisFolder
 
