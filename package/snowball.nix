@@ -1,5 +1,5 @@
 {
-    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/a9950936f8c82165c8e2276cc0d6683974e52537/package/snowball.nix");
+    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/7c324eefb14ba8b598c9f669d945e4ea370b9f91/package/snowball.nix");
     # ozoneSnowball = (ozoneSnow.outputs (ozoneSnow.inputs // {}));
     # ozonePackage = ozoneSnowball.package0;
         
