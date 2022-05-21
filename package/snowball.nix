@@ -1,5 +1,5 @@
 {
-    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/02925312fb92586f063875608004b9241a945afa/package/snowball.nix");
+    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/455e87f91381283112d20a9508faf0a1d520ee30/package/snowball.nix");
     # ozoneSnowball = (ozoneSnow.outputs (ozoneSnow.inputs // {}));
     # ozonePackage = ozoneSnowball.package0;
         
@@ -12,14 +12,14 @@
         fontconfig    = nixpkgs.fontconfig;
         freetype      = nixpkgs.freetype;
         libICE        = nixpkgs.xorg.libICE;
-        libSM         = nixpkgs.libSM;
-        udev          = nixpkgs.udev;
-        libX11        = nixpkgs.libX11;
-        libXcursor    = nixpkgs.libXcursor;
-        libXext       = nixpkgs.libXext;
-        libXfixes     = nixpkgs.libXfixes;
-        libXrandr     = nixpkgs.libXrandr;
-        libXrender    = nixpkgs.libXrender;
+        libSM         = nixpkgs.xorg.libSM;
+        udev          = nixpkgs.xorg.udev;
+        libX11        = nixpkgs.xorg.libX11;
+        libXcursor    = nixpkgs.xorg.libXcursor;
+        libXext       = nixpkgs.xorg.libXext;
+        libXfixes     = nixpkgs.xorg.libXfixes;
+        libXrandr     = nixpkgs.xorg.libXrandr;
+        libXrender    = nixpkgs.xorg.libXrender;
     };
     outputs = { nixpkgs, variant, lib, stdenv, fetchurl, fontconfig, freetype, libICE, libSM, udev, libX11, libXcursor, libXext, libXfixes, libXrandr, libXrender, ... }:
         let 
