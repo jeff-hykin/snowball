@@ -126,7 +126,9 @@
                     homepage = "https://www.segger.com/products/development-tools/ozone-j-link-debugger";
                     license = licenses.unfree;
                     maintainers = [ maintainers.bmilanov ];
-                    platforms = [ "x86_64-linux" ];
+                    platforms = [
+                        lib.platforms.linux
+                    ];
                 };
             };
         in
