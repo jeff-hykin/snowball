@@ -125,7 +125,7 @@ async function convertPackageInfo(attrName, packageInfo, commitHash) {
         return null
     }
 
-    const versionNumberListMatch = output.frozen.versionString.match(/((?:\d+)\.(?:\d+)(?:\.(?:\d+))*)(.+)?/)
+    const versionNumberListMatch = output.frozen.versionString.match(/((?:\d+)(?:\.(?:\d+))*)(.+)?/)
     if (versionNumberListMatch) {
         output.frozen.versionNumberList = versionNumberListMatch[1].split(".").map(each=>each-0)
         const tagIfAny = versionNumberListMatch[2]
