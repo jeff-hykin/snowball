@@ -13,6 +13,7 @@ if (!scanExists) {
 
 Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
+Console.env.NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1"
 Console.env.NIX_PATH = ""
 Console.env.HOME = FileSystem.thisFolder
 
@@ -124,7 +125,7 @@ async function convertPackageInfo(attrName, packageInfo, commitHash) {
         return null
     }
 
-    const versionNumberListMatch = output.frozen.versionString.match(/((?:\d+)\.(?:\d+)(?:\.(?:\d+))*)(.+)?/)
+    const versionNumberListMatch = output.frozen.versionString.match(/((?:\d+)(?:\.(?:\d+))*)(.+)?/)
     if (versionNumberListMatch) {
         output.frozen.versionNumberList = versionNumberListMatch[1].split(".").map(each=>each-0)
         const tagIfAny = versionNumberListMatch[2]
