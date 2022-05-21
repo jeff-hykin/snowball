@@ -1,4 +1,8 @@
 {
+    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/c53e9ec4df2dc3b3d0ca7ce811c066f99408cccd/package/snowball.nix");
+    # ozoneSnowball = (ozoneSnow.outputs (ozoneSnow.inputs // {}));
+    # ozonePackage = ozoneSnowball.package0;
+        
     inputs = rec {
         nixpkgs = (import (builtins.fetchTarball { url = "https://github.com/NixOS/nixpkgs/archive/307aac8774fbcb83f4f732edfd14d774611001aa.tar.gz"; }) {});
         variant       = "default";
