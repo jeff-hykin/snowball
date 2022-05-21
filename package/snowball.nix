@@ -1,5 +1,5 @@
 {
-    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/c53e9ec4df2dc3b3d0ca7ce811c066f99408cccd/package/snowball.nix");
+    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/d8e99a84049e8a2b4cf7fa4726d6e36204e8c41b/package/snowball.nix");
     # ozoneSnowball = (ozoneSnow.outputs (ozoneSnow.inputs // {}));
     # ozonePackage = ozoneSnowball.package0;
         
@@ -126,8 +126,8 @@
                     homepage = "https://www.segger.com/products/development-tools/ozone-j-link-debugger";
                     license = licenses.unfree;
                     maintainers = [ maintainers.bmilanov ];
-                    platforms = [
-                        lib.platforms.linux
+                    platforms = lib.platforms.linux ++ [
+                        
                     ];
                 };
             };
