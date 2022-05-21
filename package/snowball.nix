@@ -1,5 +1,5 @@
 {
-    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/455e87f91381283112d20a9508faf0a1d520ee30/package/snowball.nix");
+    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/d5a628d6683571f94f9078ff8e31866e8eac6d04/package/snowball.nix");
     # ozoneSnowball = (ozoneSnow.outputs (ozoneSnow.inputs // {}));
     # ozonePackage = ozoneSnowball.package0;
         
@@ -13,7 +13,7 @@
         freetype      = nixpkgs.freetype;
         libICE        = nixpkgs.xorg.libICE;
         libSM         = nixpkgs.xorg.libSM;
-        udev          = nixpkgs.xorg.udev;
+        udev          = nixpkgs.udev;
         libX11        = nixpkgs.xorg.libX11;
         libXcursor    = nixpkgs.xorg.libXcursor;
         libXext       = nixpkgs.xorg.libXext;
