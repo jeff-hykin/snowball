@@ -1,5 +1,5 @@
 {
-    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/d5a628d6683571f94f9078ff8e31866e8eac6d04/package/snowball.nix");
+    # ozoneSnow = import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/a9950936f8c82165c8e2276cc0d6683974e52537/package/snowball.nix");
     # ozoneSnowball = (ozoneSnow.outputs (ozoneSnow.inputs // {}));
     # ozonePackage = ozoneSnowball.package0;
         
@@ -62,7 +62,7 @@
                 then
                     fetchurl {
                         url = "https://www.segger.com/downloads/jlink/Ozone_Linux_V${(lib.replaceChars ["."] [""] version)}_arm64.tgz";
-                        sha256 = lib.fakeSha256;
+                        sha256 = "0bnbzjnb4d65n0p5kyijdwwww7g906nf1cmv7mm0qpbcmpkk35bp";
                     }
                 else
                     fetchurl {
