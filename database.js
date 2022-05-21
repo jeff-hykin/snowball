@@ -14,7 +14,7 @@ function sendBatch(batch) {
     return client.index('packages').updateDocuments(batch)
 }
 
-const batchSize = 5000
+const batchSize = 10000
 
 const allPackageJsonPaths = await FileSystem.recursivelyListPathsIn(`${scanFolder}/packages`)
 console.debug(`allPackageJsonPaths.length is:`,allPackageJsonPaths.length)

@@ -10,33 +10,50 @@
         
         
         const indexName = "packages"
-        
-        const post = ({data=null, to=null}) => new Promise(
-            function (resolve, reject) {
-                let the_request = new XMLHttpRequest()
-                the_request.onload = function () {
-                    if (this.status >= 200 && this.status < 300) {
-                        try { var output_ = JSON.parse(the_request.responseText) }
-                        catch (error) { var output_ = the_request.responseText }
-                        resolve(output_)
-                    }
-                    else {
-                        reject({
-                                status: this.status,
-                                statusText: the_request.statusText
-                            })
-                    }
-                }
-                the_request.onerror = function () {
-                    reject({
-                            status: this.status,
-                            statusText: the_request.statusText
-                        })
-                }
-                the_request.open("POST", to, true)
-                the_request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8')
-                the_request.send(JSON.stringify(data))
+        // Example POST method implementation:
+        async function post({data=null, to=null}) {
+            // Default options are marked with *
+            const response = await fetch(to, {
+                method: 'POST', // *GET, POST, PUT, DELETE, etc.
+                mode: 'cors', // no-cors, *cors, same-origin
+                cache: 'no-cache', // *default, no-cache, reload, force-cache, only-if-cached
+                credentials: 'same-origin', // include, *same-origin, omit
+                headers: {
+                    'Content-Type': 'application/json' // 'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                redirect: 'follow', // manual, *follow, error
+                referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+                body: JSON.stringify(data) // body data type must match "Content-Type" header
             })
+            return response.json() // parses JSON response into native JavaScript objects
+        }
+        
+        // const post = ({data=null, to=null}) => new Promise(
+        //     function (resolve, reject) {
+        //         let the_request = new XMLHttpRequest()
+        //         the_request.onload = function () {
+        //             if (this.status >= 200 && this.status < 300) {
+        //                 try { var output_ = JSON.parse(the_request.responseText) }
+        //                 catch (error) { var output_ = the_request.responseText }
+        //                 resolve(output_)
+        //             }
+        //             else {
+        //                 reject({
+        //                         status: this.status,
+        //                         statusText: the_request.statusText
+        //                     })
+        //             }
+        //         }
+        //         the_request.onerror = function () {
+        //             reject({
+        //                     status: this.status,
+        //                     statusText: the_request.statusText
+        //                 })
+        //         }
+        //         the_request.open("POST", to, true)
+        //         the_request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8')
+        //         the_request.send(JSON.stringify(data))
+        //     })
         
         
         window.search = ({
@@ -54,22 +71,26 @@
             highlightPostTag= "</em>", //	String inserted at the end of a highlighted term	"</em>"
             matches= false, //	Return matching terms location	false
             sort= null, //	Sort search results by an attribute's value	null
-        })=> post({ to: `http://localhost:7700/indexes/${indexName}/search`, data: {
-            q,
-            offset,
-            limit,
-            filter,
-            facetsDistribution,
-            attributesToRetrieve,
-            attributesToCrop,
-            cropLength,
-            cropMarker,
-            attributesToHighlight,
-            highlightPreTag,
-            highlightPostTag,
-            matches,
-            sort,
-        } })
+        })=> post({
+            data: {q,offset,limit},
+            to:`http://localhost:7700/indexes/${indexName}/search`,
+        })
+        // post({ to: `http://localhost:7700/indexes/${indexName}/search`, data: {
+        //     q,
+        //     offset,
+        //     limit,
+        //     filter,
+        //     facetsDistribution,
+        //     attributesToRetrieve,
+        //     attributesToCrop,
+        //     cropLength,
+        //     cropMarker,
+        //     attributesToHighlight,
+        //     highlightPreTag,
+        //     highlightPostTag,
+        //     matches,
+        //     sort,
+        // } })
         
         
         var { Elemental, html } = await import("https://cdn.skypack.dev/@!!!!!/elemental@0.0.13")
@@ -83,6 +104,11 @@
             attribute: ({style, children, name, value, ...props})=>html`<span style="padding: 0.4rem; font-size: 1.1rem;" ...${props}>
                 <span style="font-weight: bold;">${name}:</span> ${value}
             </span>`,
+            codeBlock: ({style, children, ...props})=>html`
+                <code style="background: lightgray; border-radius: 4px; white-space: pre; overflow: auto; width: 95%; margin: 0.4rem; padding: 1.2rem 0.3rem;" ...${props}>
+                    ${children}
+                </code>
+            `,
             result: ({style, children, frozen, flexible, ...props})=>{
                 const element = html`
                     <container style="
@@ -102,9 +128,12 @@
                                 <attribute name="Name" value=${frozen.name} />
                                 <attribute name="Version" value=${frozen.versionString} />
                             </container>
-                            <code style="background: lightgray; border-radius: 4px; white-space: pre; overflow: auto; width: 95%; margin: 0.4rem; padding: 1.2rem 0.3rem;">
+                            <codeBlock>
                                 ${JSON.stringify(frozen,0,4)}
-                            </code>
+                            </codeBlock>
+                            <codeBlock>
+                                ${JSON.stringify(flexible,0,4)}
+                            </codeBlock>
                     </container>
                 `
                 setTimeout(()=>element.style.opacity = 1, 1)
