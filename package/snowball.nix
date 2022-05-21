@@ -1,13 +1,6 @@
 {
     inputs = rec {
-        nixpkgs = (builtins.import
-            (builtins.fetchTarball 
-                ({
-                    url = "https://github.com/NixOS/nixpkgs/archive/85a130db2a80767465b0b8a99e772595e728b2e4.tar.gz";
-                })
-            )
-            ({})
-        );
+        nixpkgs = (import (builtins.fetchTarball { url = "https://github.com/NixOS/nixpkgs/archive/307aac8774fbcb83f4f732edfd14d774611001aa.tar.gz"; }) {});
         variant       = "default";
         lib           = nixpkgs.lib;
         stdenv        = nixpkgs.stdenv;
