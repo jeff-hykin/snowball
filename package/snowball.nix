@@ -53,7 +53,7 @@
             info = {};
             package0 = stdenv.mkDerivation rec {
                 pname = "segger-ozone";
-                version = "3.22a";
+                version = "7.66a";
 
                 src = if
                     stdenv.system == "aarch64-linux"
@@ -62,6 +62,7 @@
                 then
                     fetchurl {
                         url = "https://www.segger.com/downloads/jlink/Ozone_Linux_V${(lib.replaceChars ["."] [""] version)}_arm64.tgz";
+                        url = "https://www.segger.com/downloads/jlink/Ozone_Linux_V322a_arm64.tgz";
                         sha256 = "0bnbzjnb4d65n0p5kyijdwwww7g906nf1cmv7mm0qpbcmpkk35bp";
                     }
                 else
