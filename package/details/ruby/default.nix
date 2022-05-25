@@ -291,12 +291,26 @@
                                 rubyEngine = "ruby";
                                 libPath = "lib/${rubyEngine}/${ver.libDir}";
                                 gemPath = "lib/${rubyEngine}/gems/${ver.libDir}";
-                                devEnv = import ./dev.nix {
-                                    buildEnv = buildEnv;
-                                    bundler = bundler;
-                                    bundix = bundix;
-                                    ruby = self;
-                                };
+                                devEnv =
+                                    let
+                                        bundler_ = bundler.override {
+                                            ruby = ruby;
+                                        };
+                                        bundix_ = bundix.override {
+                                            bundler = bundler_;
+                                        };
+                                    in
+                                        buildEnv {
+                                            name = "${ruby.rubyEngine}-dev-${ruby.version}";
+                                            paths = [
+                                                bundix_
+                                                bundler_
+                                                ruby
+                                            ];
+                                            pathsToLink = [ "/bin" ];
+                                            ignoreCollisions = true;
+                                        }
+                                ;
                                 inherit (import ../../ruby-modules/with-packages {
                                     lib = lib;
                                     stdenv = stdenv;
