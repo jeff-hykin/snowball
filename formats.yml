@@ -133,4 +133,8 @@ save system:
             - source providers
             - date range
             - etc
-        
+db system:
+    - package table
+    - variants table
+    - info table
+    - sources table
