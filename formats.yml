@@ -2,17 +2,13 @@ user submission format:
     {
         "name": "python",
         "description": "A high-level dynamically-typed programming language",
-        "info": {
+        "identifiers": {
+            "inputs": {},
             "license": {
                 "fullName": "Python Software Foundation License version 2",
                 "shortName": "psfl",
                 "spdxId": "Python-2.0",
                 "url": "https://spdx.org/licenses/Python-2.0.html"
-            },
-            "adjectives": {
-                "unfree": false,
-                "insecure": false,
-                "broken": false,
             },
             "versionString": "2.7.18",
             "versionNumberList": [
@@ -20,7 +16,26 @@ user submission format:
                 7,
                 18
             ],
+        },
+        "info": {
+            "dependsOn": [
+                # additional info can be added to dependency entries, but they must all have this
+                {
+                    "name": "python",
+                    "description": "A high-level dynamically-typed programming language",
+                }
+            ],
             "detailedDescription": "Python is a remarkably powerful dynamic programming language that\nis used in a wide variety of application domains. Some of its key\ndistinguishing features include: clear, readable syntax; strong\nintrospection capabilities; intuitive object orientation; natural\nexpression of procedural code; full modularity, supporting\nhierarchical packages; exception-based error handling; and very\nhigh level dynamic data types.\n",
+            "adjectives": {
+                "beta": false,
+                "unfree": false,
+                "insecure": false,
+                "broken": false,
+                "nixpkgs": {
+                    "isPackage": true
+                        # "nixFunction", "application", TODO: formally define options
+                },
+            },
             "links": {
                 "homepage": "http://python.org",
                 "icon": "http://python.org",
@@ -75,15 +90,139 @@ user submission format:
                 "x86_64-genode"
             ],
         },
-        sources: [
+        "sources": [
             {
                 "git": "https://github.com/NixOS/nixpkgs.git",
                 "commit": "6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3",
                 "attributePath": [
                     "python27Full"
                 ],
+                "inputs": {},
                 "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
                 "date": "2021-02-24"
             },
+        ]
+    }
+
+search format:
+    {
+        "name": "python",
+        "description": "A high-level dynamically-typed programming language",
+        "adjectiveFrequency": {
+            "jsonEscapedListAsKey": 0.01, # proportion
+            "[\"nixpkgs\",\"isPackage\"]": 1.0,
+        },
+        # can search by infoChunks or variants, but must pick a variant before seeing sources
+        "variants": {
+            "hashValue1": {
+                "inputs": {},
+                "license": {
+                    "fullName": "Python Software Foundation License version 2",
+                    "shortName": "psfl",
+                    "spdxId": "Python-2.0",
+                    "url": "https://spdx.org/licenses/Python-2.0.html"
+                },
+                "versionString": "2.7.18",
+                "versionNumberList": [
+                    2,
+                    7,
+                    18
+                ],
+                "authenticate": {
+                    "publickey": "",
+                    "sourceHash": "",
+                }
+            },
+            "hashValue2": {
+                "inputs": {},
+                "license": {
+                    "fullName": "Python Software Foundation License version 2",
+                    "shortName": "psfl",
+                    "spdxId": "Python-2.0",
+                    "url": "https://spdx.org/licenses/Python-2.0.html"
+                },
+                "versionString": "3.5.1",
+                "versionNumberList": [
+                    3,
+                    5,
+                    1
+                ],
+            },
+        },
+        "infoChunks": { # filter by these, they're at top level to help them influence search and to cut down on duplicated data
+            "hashId1": [ ["dependsOn","name"], "python" ],
+            "hashId2": [ ["dependsOn","description"], "A high-level dynamically-typed programming language" ],
+            "hashId3": [ ["detailedDescription"], "Python is a remarkably powerful dynamic programming language that\nis used in a wide variety of application domains. Some of its key\ndistinguishing features include: clear, readable syntax; strong\nintrospection capabilities; intuitive object orientation; natural\nexpression of procedural code; full modularity, supporting\nhierarchical packages; exception-based error handling; and very\nhigh level dynamic data types.\n" ],
+            "hashId4": [ ["adjectives", "beta"], false ],
+            "hashId5": [ ["adjectives", "unfree"], false ],
+            "hashId6": [ ["adjectives", "insecure"], false ],
+            "hashId7": [ ["adjectives", "broken"], false ],
+            "hashId8": [ ["adjectives", "nixpkgs", "isPackage"], false ],
+            "hashId9": [ ["links", "homepage"], "http://python.org" ],
+            "hashId10": [ ["links", "icon"], "http://python.org" ],
+            "hashId11": [ ["platforms", 0 ], "aarch64-linux" ],
+            "hashId12": [ ["platforms", 1 ], "armv5tel-linux" ],
+            "hashId13": [ ["platforms", 2 ], "armv6l-linux" ],
+            "hashId14": [ ["platforms", 3 ], "armv7a-linux" ],
+            "hashId15": [ ["platforms", 4 ], "armv7l-linux" ],
+            "hashId16": [ ["platforms", 5 ], "mipsel-linux" ],
+            "hashId17": [ ["platforms", 6 ], "i686-cygwin" ],
+            "hashId18": [ ["platforms", 7 ], "i686-freebsd" ],
+            "hashId19": [ ["platforms", 8 ], "i686-linux" ],
+            "hashId20": [ ["platforms", 9 ], "i686-netbsd" ],
+            "hashId21": [ ["platforms", 10 ], "i686-openbsd" ],
+            "hashId22": [ ["platforms", 11 ], "x86_64-cygwin" ],
+            "hashId23": [ ["platforms", 12 ], "x86_64-freebsd" ],
+            "hashId24": [ ["platforms", 13 ], "x86_64-linux" ],
+            "hashId25": [ ["platforms", 14 ], "x86_64-netbsd" ],
+            "hashId26": [ ["platforms", 15 ], "x86_64-openbsd" ],
+            "hashId27": [ ["platforms", 16 ], "x86_64-solaris" ],
+            "hashId28": [ ["platforms", 17 ], "x86_64-darwin" ],
+            "hashId29": [ ["platforms", 18 ], "i686-darwin" ],
+            "hashId30": [ ["platforms", 19 ], "aarch64-darwin" ],
+            "hashId31": [ ["platforms", 20 ], "armv7a-darwin" ],
+            "hashId32": [ ["platforms", 21 ], "x86_64-windows" ],
+            "hashId33": [ ["platforms", 22 ], "i686-windows" ],
+            "hashId34": [ ["platforms", 23 ], "wasm64-wasi" ],
+            "hashId35": [ ["platforms", 24 ], "wasm32-wasi" ],
+            "hashId36": [ ["platforms", 25 ], "x86_64-redox" ],
+            "hashId37": [ ["platforms", 26 ], "powerpc64-linux" ],
+            "hashId38": [ ["platforms", 27 ], "powerpc64le-linux" ],
+            "hashId39": [ ["platforms", 28 ], "riscv32-linux" ],
+            "hashId40": [ ["platforms", 29 ], "riscv64-linux" ],
+            "hashId41": [ ["platforms", 30 ], "arm-none" ],
+            "hashId42": [ ["platforms", 31 ], "armv6l-none" ],
+            "hashId43": [ ["platforms", 32 ], "aarch64-none" ],
+            "hashId44": [ ["platforms", 33 ], "avr-none" ],
+            "hashId45": [ ["platforms", 34 ], "i686-none" ],
+            "hashId46": [ ["platforms", 35 ], "x86_64-none" ],
+            "hashId47": [ ["platforms", 36 ], "powerpc-none" ],
+            "hashId48": [ ["platforms", 37 ], "msp430-none" ],
+            "hashId49": [ ["platforms", 38 ], "riscv64-none" ],
+            "hashId50": [ ["platforms", 39 ], "riscv32-none" ],
+            "hashId51": [ ["platforms", 40 ], "vc4-none" ],
+            "hashId52": [ ["platforms", 41 ], "or1k-none" ],
+            "hashId53": [ ["platforms", 42 ], "mmix-mmixware" ],
+            "hashId54": [ ["platforms", 43 ], "js-ghcjs" ],
+            "hashId55": [ ["platforms", 44 ], "aarch64-genode" ],
+            "hashId56": [ ["platforms", 45 ], "i686-genode" ],
+            "hashId57": [ ["platforms", 46 ], "x86_64-genode" ],
+        },
+        "sources": [
+            {
+                "attributes": [
+                    "variantHashValue1"
+                ],
+                "source": {
+                    "git": "https://github.com/NixOS/nixpkgs.git",
+                    "commit": "6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3",
+                    "attributePath": [
+                        "python27Full"
+                    ],
+                    "inputs": {},
+                    "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
+                    "date": "2021-02-24"
+                }
+            }
         ]
     }
