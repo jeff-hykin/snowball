@@ -53,18 +53,15 @@
             info = {};
             package0 = stdenv.mkDerivation rec {
                 pname = "segger-ozone";
-                version = "7.66a";
+                version = "3.22a";
 
                 src = if
-                    stdenv.system == "aarch64-linux"
-                    # x86 mac: https://www.segger.com/downloads/jlink/JLink_MacOSX.pkg
-                    # M1 mac: https://www.segger.com/downloads/jlink/JLink_MacOSX_arm64.pkg
+                    stdenv.system == "x86_64-darwin"
                 then
+                    # note: does work on M1 macs in compatibility mode (when installed outside of nixpkgs)
                     fetchurl {
-                        url = "https://www.segger.com/downloads/jlink/Ozone_Linux_V${(lib.replaceChars ["."] [""] version)}_arm64.tgz";
+                        url = "https://www.segger.com/downloads/jlink/Ozone_MacOSX_V${(lib.replaceChars ["."] [""] version)}_x86_64.tgz";
                         sha256 = lib.fakeSha256;
-                        
-                        # sha256 = "0bnbzjnb4d65n0p5kyijdwwww7g906nf1cmv7mm0qpbcmpkk35bp";
                     }
                 else
                     fetchurl {
@@ -129,7 +126,7 @@
                     license = licenses.unfree;
                     maintainers = [ maintainers.bmilanov ];
                     platforms = lib.platforms.linux ++ [
-                        
+                        "x86_64-darwin"
                     ];
                 };
             };
