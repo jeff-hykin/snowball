@@ -1,0 +1,16 @@
+db system:
+    - submissions: just every publish as-is in a content-addressed folder
+    - package folder: just package names and summary stats
+    - variants folder:
+        different description, same package name:
+            - name
+            - description
+            - click counts
+            - adjective frequency: use key path as a value, and set the key to be the hash of the value
+            - variant frequency
+            - license frequency
+            - source providers
+            - date range
+            - etc
+    - info folder: reference variant and package
+    - sources folder: reference to info and variant and package
