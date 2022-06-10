@@ -16,11 +16,11 @@
                     # packages."x86_64-linux" = pkgs.stdenv.mkDerivation {
                     # 
                     # };
-                    packages."x86_64-linux"   = pkgs.gnuradio3_8Packages.python;
-                    packages."aarch64-linux"  = pkgs.gnuradio3_8Packages.python;
-                    packages."i686-linux"     = pkgs.gnuradio3_8Packages.python;
-                    packages."x86_64-darwin"  = pkgs.gnuradio3_8Packages.python;
-                    packages."aarch64-darwin" = pkgs.gnuradio3_8Packages.python;
+                    packages."x86_64-linux"   = pkgs.python3Full;
+                    packages."aarch64-linux"  = pkgs.python3Full;
+                    packages."i686-linux"     = pkgs.python3Full;
+                    packages."x86_64-darwin"  = pkgs.python3Full;
+                    packages."aarch64-darwin" = pkgs.python3Full;
                 }
         ;
     }
