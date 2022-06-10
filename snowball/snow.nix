@@ -1,9 +1,9 @@
 {
-        # commit date: 2021-09-15
-        # probably can view at: https://github.com/NixOS/nixpkgs/blob/ff94eef5c14da66ede95e968425afb1eda2c788b/pkgs/development/interpreters/python/cpython/2.7/default.nix
+        # commit date: 2021-05-22
+        # probably can view at: https://github.com/NixOS/nixpkgs/blob/d9de79194aaa0077fe19e8296711c22dfe238e96/pkgs/development/interpreters/python/cpython/2.7/default.nix
         inputs = {
-            nixpkgsHash   = { ...} : "ff94eef5c14da66ede95e968425afb1eda2c788b";
-            pkgs          = { nixpkgsHash, ...} : (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/ff94eef5c14da66ede95e968425afb1eda2c788b.tar.gz";}) ) ({}) );
+            nixpkgsHash   = { ...} : "d9de79194aaa0077fe19e8296711c22dfe238e96";
+            pkgs          = { nixpkgsHash, ...} : (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/d9de79194aaa0077fe19e8296711c22dfe238e96.tar.gz";}) ) ({}) );
             # customInput1 = { pkgs, ...} : pkgs.something;
             # customInput2 = { customInput1, ...} : customInput1.subPackage;
         };
