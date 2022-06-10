@@ -1,9 +1,9 @@
 {
-        # commit date: 2021-07-29
-        # probably can view at: https://github.com/NixOS/nixpkgs/blob/2784f1bd6908b37ed0d686778f347e63692c0f84/pkgs/development/interpreters/python/cpython/default.nix
+        # commit date: 2021-07-20
+        # probably can view at: https://github.com/NixOS/nixpkgs/blob/586a9e6bffb1b4e0e444bf4013169d8f415f2987/pkgs/development/interpreters/python/cpython/default.nix
         inputs = {
-            nixpkgsHash   = { ...} : "2784f1bd6908b37ed0d686778f347e63692c0f84";
-            pkgs          = { nixpkgsHash, ...} : (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/2784f1bd6908b37ed0d686778f347e63692c0f84.tar.gz";}) ) ({}) );
+            nixpkgsHash   = { ...} : "586a9e6bffb1b4e0e444bf4013169d8f415f2987";
+            pkgs          = { nixpkgsHash, ...} : (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/586a9e6bffb1b4e0e444bf4013169d8f415f2987.tar.gz";}) ) ({}) );
             # customInput1 = { pkgs, ...} : pkgs.something;
             # customInput2 = { customInput1, ...} : customInput1.subPackage;
         };
@@ -16,11 +16,11 @@
                     # packages."x86_64-linux" = pkgs.stdenv.mkDerivation {
                     # 
                     # };
-                    packages."x86_64-linux"   = pkgs.gnuradio3_8Packages.python;
-                    packages."aarch64-linux"  = pkgs.gnuradio3_8Packages.python;
-                    packages."i686-linux"     = pkgs.gnuradio3_8Packages.python;
-                    packages."x86_64-darwin"  = pkgs.gnuradio3_8Packages.python;
-                    packages."aarch64-darwin" = pkgs.gnuradio3_8Packages.python;
+                    packages."x86_64-linux"   = pkgs.python310;
+                    packages."aarch64-linux"  = pkgs.python310;
+                    packages."i686-linux"     = pkgs.python310;
+                    packages."x86_64-darwin"  = pkgs.python310;
+                    packages."aarch64-darwin" = pkgs.python310;
                 }
         ;
     }
