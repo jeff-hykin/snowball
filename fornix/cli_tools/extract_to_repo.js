@@ -1,5 +1,5 @@
 #!/usr/bin/env -S deno run --allow-all
-import { getPackageInfo, allCommitsFor } from "../support/nixpkgs.js"
+import { getPackageInfo, allCommitsFor, getReleventCommitsFor } from "../support/nixpkgs.js"
 import { jsonRead } from "../support/basics.js"
 
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
@@ -12,15 +12,16 @@ const name = Deno.args[0]
 // 
 const repoFolder = `${FileSystem.thisFolder}/../cache.ignore/extracted_repos/${name}`; await FileSystem.ensureIsFolder(repoFolder)
 const snowballPath = `${repoFolder}/snowball/snow.nix`
-await run`git clone https://github.com/jeff-hykin/snowball ${repoFolder}`
+await run`git clone -b template/package https://github.com/jeff-hykin/snowball ${repoFolder}`
 await (FileSystem.cwd = repoFolder)
-// checkout the correct path
-const currentBranchName = await run`git rev-parse --abbrev-ref HEAD ${Stdout(returnAsString)}`
+// checkout the correct branch for the package
 const packageBranchName = `packages/${name}`
-await run`git switch ${currentBranchName}`
-await run`git checkout -b ${`packages/${name}`}`
-await run`git push --set-upstream origin ${`packages/${name}`}`
+await run`git checkout -b ${packageBranchName}`
+await run`git push --set-upstream origin ${packageBranchName}`
 
+// 
+// begin processsing commits
+// 
 const commits = await getReleventCommitsFor({packageName: name})
 for (const [hash, dateString] of Object.entries(commits)) {
     const infos = await getPackageInfo({hash, packageName})
@@ -113,18 +114,13 @@ for (const [hash, dateString] of Object.entries(commits)) {
             })
             await FileSystem.write({ data: snowballString, path: snowballPath,})
             await run`git add -A`
-            await run`git commit -m ${}`
-            git tag "$tag_name"
-            git push origin "$tag_name"
+            await run`git commit -m ${info.version}`
+            await run`git push`
+            await run`git tag ${info.version}`
+            await run`git push origin ${info.version}`
         }
     }
 }
-// - git log on that file path to get relvent commits
-// - iterate over the commits
-//      - extract version info, and attribute path
-//      - generate a snowball.nix
-//      - add/stage, commit changes, push,
-//      - tag with version
 
 function generateSnowballString({ nixpkgsHash, attributePath, relativePath }) {
     return `{

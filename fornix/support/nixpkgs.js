@@ -14,13 +14,16 @@ Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
 Console.env.NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1"
 Console.env.NIX_PATH = ""
-Console.env.HOME = FileSystem.thisFolder
+Console.env.HOME = `${cacheFolder}/nixpkgs/`
 
 // 
 // clone nixpkgs to the correct place
 // 
-await run`git clone https://github.com/NixOS/nixpkgs.git ${nixpkgsFolder}`
-const latestCommitHash = await run`git rev-parse HEAD ${Stdout(returnAsString)}`
+const folderInfo = await FileSystem.info(`${nixpkgsFolder}/.git`)
+if (!folderInfo.isFolder) {
+    await run`git clone https://github.com/NixOS/nixpkgs.git ${nixpkgsFolder}`
+}
+const latestCommitHash = await run`git rev-parse HEAD ${Stdout(returnAsString)} ${Cwd(nixpkgsFolder)}`
 
 
 
@@ -42,7 +45,6 @@ export async function allCommitsAndDates() {
     return allCommitsCache
 }
 
-let allCommitsCache = null
 export async function allCommitsFor({paths}) {
     const result = await run(`git`, `log`, `--first-parent`, `--date=short`, `--pretty=format:%H#%ad`, ...paths, Cwd(nixpkgsFolder), Stdout(returnAsString))
     return Object.fromEntries(result.split("\n").map(each=>each.split(/#/)))
@@ -77,7 +79,7 @@ export async function getPackageInfo({hash, packageName}) {
     let output = await jsonRead(path)
     if (output == null) {
         // pretend to be linux since it has the most wide support
-        await run`nix-env -qa --json --arg system \"x86_64-linux\" --file ${`https://github.com/NixOS/nixpkgs/archive/${hash}.tar.gz`} ${Stdout(Overwrite(path))}`
+        await run`nix-env -qa --json --arg system \"x86_64-linux\" --file ${`https://github.com/NixOS/nixpkgs/archive/${hash.trim()}.tar.gz`} ${Stdout(Overwrite(path))}`
         output = await jsonRead(path)
     }
     // if still null
