@@ -23,8 +23,9 @@ await run`git push --set-upstream origin ${packageBranchName}`
 // begin processsing commits
 // 
 const commits = await getReleventCommitsFor({packageName: name})
+console.debug(`Object.keys(commits).length is:`,Object.keys(commits).length)
 for (const [hash, dateString] of Object.entries(commits)) {
-    const infos = await getPackageInfo({hash, packageName})
+    const infos = await getPackageInfo({hash, packageName: name})
     // {
     //     "nixpkgs.python": {
     //         "name": "python-2.7.18",
@@ -107,6 +108,7 @@ for (const [hash, dateString] of Object.entries(commits)) {
     // }            
     for (const [attributePath, info] of Object.entries(infos)) {
         if (info.version && info.meta && info.meta.path) {
+            console.debug(`info.version is:`,info.version)
             const snowballString = generateSnowballString({
                 nixpkgsHash: hash,
                 attributePath,

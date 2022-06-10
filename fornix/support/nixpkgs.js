@@ -46,31 +46,37 @@ export async function allCommitsAndDates() {
 }
 
 export async function allCommitsFor({paths}) {
+    if (paths.length == 0) {
+        return {}
+    }
     const result = await run(`git`, `log`, `--first-parent`, `--date=short`, `--pretty=format:%H#%ad`, ...paths, Cwd(nixpkgsFolder), Stdout(returnAsString))
     return Object.fromEntries(result.split("\n").map(each=>each.split(/#/)))
 }
 
 export async function getReleventCommitsFor({packageName, startCommit}) {
+    console.log("getReleventCommitsFor")
     startCommit = startCommit || latestCommitHash
     const packages = await getPackageInfo({
         hash: startCommit,
         packageName
     })
     
+    console.debug(`packages is:`,packages)
     // 
     // get paths
     // 
     const relativePaths = new Set()
-    for (const each of packages) {
+    for (const [key, each] of Object.entries(packages)) {
         if (each.meta instanceof Object && typeof each.meta.path == 'string') {
             relativePaths.add(each.meta.path)
         }
     }
+    console.debug(`    relativePaths.size is:`,relativePaths.size)
 
     // 
     // get commits
     // 
-    return await allCommitsFor(relativePaths)
+    return await allCommitsFor({paths:[...relativePaths]})
 }
 
 
@@ -87,10 +93,16 @@ export async function getPackageInfo({hash, packageName}) {
         throw Error(`failed to run nix-env -qa for hash:${hash}`)
     }
     
+    
+    let packages = output
     // filter for package name (sadly this is basically as fast as querying directly for the name)
+    let pnames = []
     if (packageName) {
         output = {}
-        for (const [key, value] of Object.entries(output)) {
+        for (const [key, value] of Object.entries(packages)) {
+            if (typeof value.pname != 'string') {
+                throw Error(`${value}`)
+            }
             if (value.pname == packageName) {
                 output[key] = value
             }
