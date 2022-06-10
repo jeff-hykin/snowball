@@ -1,5 +1,5 @@
 db system:
-    - submissions: just every publish as-is in a content-addressed folder
+    - submissions: just every publish as-is in a content-addressed folder and put in an unprocessed folder
     - package folder: just package names and summary stats
     - variants folder:
         different description, same package name:
