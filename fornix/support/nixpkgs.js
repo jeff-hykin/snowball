@@ -1,8 +1,9 @@
 #!/usr/bin/env -S deno run --allow-all
 
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
-const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.24/main/console.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.32/main/run.js`)
+// const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.32/main/file_system.js`)
+const { FileSystem } = await import(`../support/file_system.js`)
+const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.32/main/console.js`)
 const { recursivelyAllKeysOf, get, set, remove, merge, compare } = await import(`https://deno.land/x/good@0.5.8/object.js`)
 const { jsonRead } = await import(`../support/basics.js`)
 
@@ -10,11 +11,37 @@ const cacheFolder = `${FileSystem.thisFolder}/../cache.ignore/nixpkgs/jsons`; aw
 const nixpkgsFolder = `${FileSystem.thisFolder}/../cache.ignore/nixpkgs/repo`
 const allCommitsPath = `${FileSystem.thisFolder}/../cache.ignore/nixpkgs/all_commits.txt`
 
+const realHome = Console.env.HOME
+
 Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
 Console.env.NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1"
 Console.env.NIX_PATH = ""
-Console.env.HOME = `${cacheFolder}/nixpkgs/`
+Console.env.HOME = `${cacheFolder}/../`
+
+// create config to broaden search results (especially on really old commits)
+await FileSystem.ensureIsFile(`${realHome}/.gitconfig`)
+await FileSystem.copy({from: `${realHome}/.gitconfig`, to: `${Console.env.HOME}/.gitconfig`})
+await FileSystem.absoluteLink({
+    existingItem: `${realHome}/Library/`,
+    newItem: `${Console.env.HOME}/Library/`,
+})
+await FileSystem.write({
+    path: `${Console.env.HOME}/config.nix`,
+    data: `
+        let 
+            permittedInsecurePackages = [
+                "linux-4.13.16"
+                "openssl-1.0.2u"
+            ];
+        in
+            {
+                allowUnfree = true;
+                nixpkgs.config.permittedInsecurePackages = permittedInsecurePackages;
+                permittedInsecurePackages = permittedInsecurePackages;
+            }
+    `
+})
 
 // 
 // clone nixpkgs to the correct place
@@ -61,7 +88,6 @@ export async function getReleventCommitsFor({packageName, startCommit}) {
         packageName
     })
     
-    console.debug(`packages is:`,packages)
     // 
     // get paths
     // 

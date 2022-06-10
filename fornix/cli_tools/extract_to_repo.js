@@ -2,8 +2,8 @@
 import { getPackageInfo, allCommitsFor, getReleventCommitsFor } from "../support/nixpkgs.js"
 import { jsonRead } from "../support/basics.js"
 
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.24/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
+const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.28/main/run.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.28/main/file_system.js`)
 
 const name = Deno.args[0]
 
@@ -23,7 +23,7 @@ await run`git push --set-upstream origin ${packageBranchName}`
 // begin processsing commits
 // 
 const commits = await getReleventCommitsFor({packageName: name})
-console.debug(`Object.keys(commits).length is:`,Object.keys(commits).length)
+console.debug(`    commit count:`, Object.keys(commits).length)
 for (const [hash, dateString] of Object.entries(commits)) {
     const infos = await getPackageInfo({hash, packageName: name})
     // {
@@ -113,19 +113,21 @@ for (const [hash, dateString] of Object.entries(commits)) {
                 nixpkgsHash: hash,
                 attributePath,
                 relativePath: info.meta.path,
+                date: dateString,
             })
             await FileSystem.write({ data: snowballString, path: snowballPath,})
-            await run`git add -A`
-            await run`git commit -m ${info.version}`
-            await run`git push`
-            await run`git tag ${info.version}`
-            await run`git push origin ${info.version}`
+            console.log(`git add -A`                     ); await run`git add -A`
+            console.log(`git commit -m ${info.version}`  ); await run`git commit -m ${info.version}`
+            console.log(`git push`                       ); await run`git push`
+            console.log(`git tag ${info.version}`        ); await run`git tag ${info.version}`
+            console.log(`git push origin ${info.version}`); await run`git push origin ${info.version}`
         }
     }
 }
 
-function generateSnowballString({ nixpkgsHash, attributePath, relativePath }) {
+function generateSnowballString({ nixpkgsHash, attributePath, relativePath, date }) {
     return `{
+        # commit date: ${date}
         # probably can view at: https://github.com/NixOS/nixpkgs/blob/${nixpkgsHash}/${relativePath}
         inputs = {
             nixpkgsHash   = { ...} : "${nixpkgsHash}";
