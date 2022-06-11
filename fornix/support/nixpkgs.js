@@ -1,8 +1,7 @@
 #!/usr/bin/env -S deno run --allow-all
 
 const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.32/main/run.js`)
-// const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.32/main/file_system.js`)
-const { FileSystem } = await import(`../support/file_system.js`)
+const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.32/main/file_system.js`)
 const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.32/main/console.js`)
 const { recursivelyAllKeysOf, get, set, remove, merge, compare } = await import(`https://deno.land/x/good@0.5.8/object.js`)
 const { jsonRead } = await import(`../support/basics.js`)
