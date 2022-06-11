@@ -1,9 +1,9 @@
 {
-        # commit date: 2019-10-14
-        # probably can view at: https://github.com/NixOS/nixpkgs/blob/81d15948cc19c2584f13031518349327ce353c82/pkgs/development/interpreters/python/cpython/default.nix
+        # commit date: 2019-09-09
+        # probably can view at: https://github.com/NixOS/nixpkgs/blob/0107ee8c322e57cdb2ebcc1c9c4286ff7db53d5c/pkgs/development/interpreters/python/cpython/default.nix
         inputs = {
-            nixpkgsHash   = { ...} : "81d15948cc19c2584f13031518349327ce353c82";
-            pkgs          = { nixpkgsHash, ...} : (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/81d15948cc19c2584f13031518349327ce353c82.tar.gz";}) ) ({}) );
+            nixpkgsHash   = { ...} : "0107ee8c322e57cdb2ebcc1c9c4286ff7db53d5c";
+            pkgs          = { nixpkgsHash, ...} : (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/0107ee8c322e57cdb2ebcc1c9c4286ff7db53d5c.tar.gz";}) ) ({}) );
             # customInput1 = { pkgs, ...} : pkgs.something;
             # customInput2 = { customInput1, ...} : customInput1.subPackage;
         };
@@ -16,11 +16,11 @@
                     # packages."x86_64-linux" = pkgs.stdenv.mkDerivation {
                     # 
                     # };
-                    packages."x86_64-linux"   = pkgs.python38;
-                    packages."aarch64-linux"  = pkgs.python38;
-                    packages."i686-linux"     = pkgs.python38;
-                    packages."x86_64-darwin"  = pkgs.python38;
-                    packages."aarch64-darwin" = pkgs.python38;
+                    packages."x86_64-linux"   = pkgs.python35;
+                    packages."aarch64-linux"  = pkgs.python35;
+                    packages."i686-linux"     = pkgs.python35;
+                    packages."x86_64-darwin"  = pkgs.python35;
+                    packages."aarch64-darwin" = pkgs.python35;
                 }
         ;
     }
