@@ -16,11 +16,11 @@
                     # packages."x86_64-linux" = pkgs.stdenv.mkDerivation {
                     # 
                     # };
-                    packages."x86_64-linux"   = pkgs.python35;
-                    packages."aarch64-linux"  = pkgs.python35;
-                    packages."i686-linux"     = pkgs.python35;
-                    packages."x86_64-darwin"  = pkgs.python35;
-                    packages."aarch64-darwin" = pkgs.python35;
+                    packages."x86_64-linux"   = pkgs.python36Full;
+                    packages."aarch64-linux"  = pkgs.python36Full;
+                    packages."i686-linux"     = pkgs.python36Full;
+                    packages."x86_64-darwin"  = pkgs.python36Full;
+                    packages."aarch64-darwin" = pkgs.python36Full;
                 }
         ;
     }
