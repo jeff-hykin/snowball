@@ -1,4 +1,5 @@
 import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.js"
+import { hash, getInnerTextOfHtml, curl } from "./utils.js"
 
 function tokenizeWords(text) {
     return text.toLowerCase()
@@ -197,8 +198,92 @@ class Index {
         this.packageReadmeIndex.updateIdf()
     }
 
-    async query(string) {
+    async query(string, numberOfResults) {
         const wordsAndChunks = tokenizeChunksAndWords(string)
+        const directPackageIndexResults      = this.directPackageIndex.search(query, numberOfResults).map(     each=>({...each,  directPackageScore:      each.score}))
+        const packageDescriptionIndexResults = this.packageDescriptionIndex.search(query, numberOfResults).map(each=>({...each,  packageDescriptionScore: each.score}))
+        const packageReadmeIndexResults      = this.packageReadmeIndex.search(query, numberOfResults).map(     each=>({...each,  packageReadmeScore:      each.score}))
+        
+        const allResults = directPackageIndexResults.concat(packageDescriptionIndexResults, packageReadmeIndexResults)
+
+        const resultsById = {}
+        for (let each of allResults) {
+            resultsById[each.id] = {...resultsById[each.id], ...each}
+        }
+        
+        const unsortedCombinedResults = Object.values(resultsById)
+        unsortedCombinedResults.sort((a,b)=>{
+            // b-a => bigger goes to element 0
+            const firstLevel  = b.directPackageScore      - a.directPackageScore
+            const secondLevel = b.packageDescriptionScore - a.packageDescriptionScore 
+            const thirdLevel  = b.packageReadmeScore      - a.packageReadmeScore 
+            if (firstLevel !== 0) {
+                return firstLevel
+            } else if (secondLevel !== 0) {
+                return secondLevel
+            } else {
+                return thirdLevel
+            }
+        })
+        
+        const outputList = []
+        for (let each of unsortedCombinedResults) {
+            outputList.append({
+                package: this.packages.get(each.id), // TODO: consider making this read from disk so that not all packages remain in memory)
+                score: [directPackageScore,packageDescriptionScore,packageReadmeScore],
+            })
+        }
+        return outputList
+    }
+
+    async function addEntryToIndex(entries) {
+        for (const each of entries) {
+            if (
+                typeof each.name == 'string' && each.name
+                typeof each.description == 'string' && each.description
+            ) {
+                const key = JSON.stringify({name: each.name, description: each.description})
+                const id = hash(key)
+                // figure out if its part of an existing name+description
+                // if yes, then dont give any pre-existing words any weight
+                if (id in this.packages) {
+                    // only add new words
+                    // TODO: lowish priority
+                } else {
+                    // 
+                    // update indicies
+                    // 
+                    this.directPackageIndex.addDocument({
+                        id,
+                        body: each.name,
+                        shouldUpdateIdf: false,
+                    })
+                    this.packageDescriptionIndex.addDocument({
+                        id,
+                        body: each.description,
+                        shouldUpdateIdf: false,
+                    })
+                    
+                    let fullReadmeDocument = ""
+                    // add keywords if given
+                    if (each.keywords instanceof Array) {
+                        fullReadmeDocument += each.keywords.join(" ")
+                    }
+                    
+                    if (typeof each.readmeUrl == 'string' && each.readmeUrl) {
+                        fullReadmeDocument += getInnerTextOfHtml(await curl(each.readmeUrl))
+                    }
+                    
+                    if (fullReadmeDocument) {
+                        this.packageReadmeIndex.addDocument({
+                            id,
+                            body: fullReadmeDocument,
+                            shouldUpdateIdf: false,
+                        })
+                    }
+                }
+            }
+        }
         this.directPackageIndex.updateIdf()
         this.packageDescriptionIndex.updateIdf()
         this.packageReadmeIndex.updateIdf()
@@ -212,3 +297,6 @@ class Index {
         })
     }
 }
+
+
+
