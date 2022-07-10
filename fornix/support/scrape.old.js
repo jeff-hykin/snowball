@@ -4,7 +4,7 @@ const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo,
 const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.24/main/file_system.js`)
 const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.24/main/console.js`)
 const { recursivelyAllKeysOf, get, set, remove, merge, compare } = await import(`https://deno.land/x/good@0.5.8/object.js`)
-const { scanFolder, hashJsonPrimitive } = await import(`./tools.js`)
+const { scanFolder, hashJsonPrimitive } = await import(`../../tools.js`)
 
 const scanExists = (await FileSystem.info(scanFolder)).isFolder
 if (!scanExists) {

@@ -6,11 +6,6 @@ const homepage = await FileSystem.read(`${FileSystem.thisFolder}/../website/inde
 
 serve(async (request, connectionInfo)=>{
     const location = request.url.replace(/.+?\/\//, "").replace(/.+?\//,"")
-    // console.debug(`location is:`,location)
-    // console.debug(`request is:`,request)
-    // console.debug(`allKeys(request) is:`,allKeys(request))
-    // console.debug(`connectionInfo is:`,connectionInfo)
-    // console.debug(`allKeys(connectionInfo) is:`,allKeys(connectionInfo))
     
     // 
     // Home
@@ -23,14 +18,14 @@ serve(async (request, connectionInfo)=>{
     // API/publish
     // 
     } else if (location == 'publish') {
-        return new Response("got it", {
+        return new Response('"got it"', {
             status: 200,
         })
     // 
     // Unknown
     // 
     } else {
-        return new Response("Sorry :/", {
+        return new Response('"Sorry :/"', {
             status: 404,
         })
     }
