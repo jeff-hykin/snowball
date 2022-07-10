@@ -1,3 +1,5 @@
+import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.js"
+
 function tokenizeWords(text) {
     return text.toLowerCase()
         .replace(/'(s|t|nt)\b/g, '$1')
@@ -156,5 +158,39 @@ class Bm25Index {
 
         results.sort((a, b)=>b.score-a.score)
         return results
+    }
+}
+
+
+class Index {
+    constructor(path) {
+        this.packages = new Map()
+        this.directPackageIndex      = new Bm25Index({ tokenizer: tokenizeChunksAndWords })
+        this.packageDescriptionIndex = new Bm25Index({ tokenizer: tokenizeChunksAndWords })
+        this.packageReadmeIndex      = new Bm25Index({ tokenizer: tokenizeWords })
+        this.path = path
+        if (path) {
+            const itemInfo = FileSystem.info()
+            // load all data if file exists
+            if (itemInfo.exists) {
+                const fileAsString = Deno.readTextFileSync(path)
+                const obj = JSON.parse(fileAsString)
+                Object.assign(this, obj)
+            }
+        }
+    }
+
+    async updateIdf() {
+        this.directPackageIndex.updateIdf()
+        this.packageDescriptionIndex.updateIdf()
+        this.packageReadmeIndex.updateIdf()
+    }
+
+    async save(path) {
+        return FileSystem.write({
+            path: this.path,
+            data: JSON.stringify(this),
+            force=true
+        })
     }
 }
