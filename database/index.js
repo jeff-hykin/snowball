@@ -84,12 +84,12 @@ class Bm25Index {
             // Inverse Document Frequency initialization
             if (!this.terms[term]) {
                 this.terms[term] = {
-                    numberOfDocs: 0, // Number of docs this term appears in, uniquely
+                    inverseCount: 0, // Number of docs this term appears in, uniquely
                     idf: 0
                 }
             }
 
-            this.terms[term].numberOfDocs++
+            this.terms[term].inverseCount++
         }
 
         // Calculate inverse document frequencies
@@ -105,15 +105,17 @@ class Bm25Index {
     }
     updateIdf() {
         for (const term of Object.keys(this.terms)) {
-            const num = this.totalDocuments - this.terms[term].numberOfDocs + 0.5
-            const denom = this.terms[term].numberOfDocs + 0.5
+            const num = this.totalDocuments - this.terms[term].inverseCount + 0.5
+            const denom = this.terms[term].inverseCount + 0.5
             this.terms[term].idf = Math.max(Math.log10(num / denom), 0.01)
         }
     }
-    search(query) {
+    search(query, numberOfResults=50) {
         const queryTerms = tokenizeWords(query)
         const results = []
-
+        
+        let worstAcceptableScore = 0
+        
         // Look at each document in turn. There are better ways to do this with inverted indices.
         for (const [id, doc] of Object.entries(this.documents)) {
             // The relevance score for a document is the sum of a tf-idf-like
@@ -149,15 +151,24 @@ class Bm25Index {
                 // Add this query term to the score
                 score += idf * num / denom
             }
-
-            if (!isNaN(score) && score > 0) {
-                // TODO: add an efficient results cap by keeping track of min/max score
-                results.push({id: doc.id, score})
+            
+            if (score > 0) {
+                if (results.length < numberOfResults) {
+                    results.push({id: doc.id, score})
+                } else if (score > worstAcceptableScore) {
+                    // first time here?=>calculate worst score
+                    if (worstAcceptableScore == 0) {
+                        worstAcceptableScore = Math.min(...results.map(each=>each.score))
+                    }
+                    results.push({id: doc.id, score})
+                    worstAcceptableScore = score
+                    results = results.filter(({score})=>score>=worstAcceptableScore) // technically doesn't guarentee that the size will stay at numberOfResults
+                }
             }
         }
 
         results.sort((a, b)=>b.score-a.score)
-        return results
+        return results.slice(0, numberOfResults)
     }
 }
 
@@ -186,7 +197,12 @@ class Index {
         this.packageReadmeIndex.updateIdf()
     }
 
-    
+    async query(string) {
+        const wordsAndChunks = tokenizeChunksAndWords(string)
+        this.directPackageIndex.updateIdf()
+        this.packageDescriptionIndex.updateIdf()
+        this.packageReadmeIndex.updateIdf()
+    }
 
     async save(path) {
         return FileSystem.write({
