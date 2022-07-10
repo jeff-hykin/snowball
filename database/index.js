@@ -186,6 +186,8 @@ class Index {
         this.packageReadmeIndex.updateIdf()
     }
 
+    
+
     async save(path) {
         return FileSystem.write({
             path: this.path,
