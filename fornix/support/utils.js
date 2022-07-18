@@ -36,3 +36,23 @@ export async function jsonRead(path) {
     return output
 }
 
+// increases resolution over time
+function* binaryListOrder(aList) {
+    const length = aList.length
+    if (length > 0) {
+        const middle = Math.floor(length/2)
+        yield aList[middle]
+        if (length > 1) {
+            const upperItems = binaryListOrder(aList.slice(0,middle))
+            const lowerItems = binaryListOrder(aList.slice(middle+1))
+            // all the sub-elements (alternate between upper and lower)
+            for (const eachUpper of upperItems) {
+                yield eachUpper
+                const eachLower = lowerItems.next()
+                if (!eachLower.done) {
+                    yield eachLower.value
+                }
+            }
+        }
+    }
+}

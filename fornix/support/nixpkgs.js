@@ -156,3 +156,16 @@ export async function getPackageInfo({hash, packageName}) {
 
     return output
 }
+
+export async function manuallyGetMeta({packageAttrPath, commitHash}) {
+    const parseTwiceJson = await run`nix eval ${`(
+            let 
+                pkgs = (builtins.import (builtins.fetchTarball ({url="https://github.com/NixOS/nixpkgs/archive/${commitHash}.tar.gz";}) ) ({}));
+            in
+                (builtins.toJSON
+                    pkgs.${packageAttrPath}.meta
+                )
+        )`} ${Stdout(returnAsString)}
+    `
+    return JSON.parse(JSON.parse(parseTwiceJson))
+}

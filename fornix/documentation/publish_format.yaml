@@ -1,110 +1,98 @@
 {
-    "name": "python",
-    "description": "A high-level dynamically-typed programming language",
-    "identifiers": {
-        "inputs": {},
-        "license": {
-            "fullName": "Python Software Foundation License version 2",
-            "shortName": "psfl",
-            "spdxId": "Python-2.0",
-            "url": "https://spdx.org/licenses/Python-2.0.html"
-        },
-        "versionString": "2.7.18",
-        "versionNumberList": [
-            2,
-            7,
-            18
-        ],
-        "authInfo": {
-            "publicKey":"",
-            "sourceHashes": {
-                "sha256": "",
+        publicationSignatures: {}, /// key=public key, value=signature given the JSON string of everything below
+
+        name: "",
+        blurb: "",
+        identifiers: {
+            licenses: [],
+            authentication: {
+                sourceHashSha256: "",
+                sourceHashSha256Signatures: {},  // key=public key, value=signature given the hash as a base64 string
             },
-        }
-    },
-    "info": {
-        "dependsOn": [
-            # additional info can be added to dependency entries, but they must all have this
+        },
+        flavor: {
+            versionAsString: "",
+            versionAsList: [],
+            inputs: {}, // keys are package names, values are objects that include a blurb
+            outputs: {}, // keys are paths, values are objects
+        },
+        additionalInfo: {
+            links: {
+                homepage: null,
+                icon: null,
+                iframeSrc: null,
+            },
+            description: null,
+            maintainers: [],
+            adjectives: {
+                custom: {},
+                nixpkgs: {
+                    automatedCreation: true,
+                    unfree: null,
+                    insecure: null,
+                    broken: null,
+                },
+                generallySupports: {},
+                exactlySupports: {
+                    "nix": null,
+                    "arm64Linux": null,
+                    "armv5telLinux": null,
+                    "armv6lLinux": null,
+                    "armv7aLinux": null,
+                    "armv7lLinux": null,
+                    "mipselLinux": null,
+                    "32bitX86Cygwin": null,
+                    "32bitX86Freebsd": null,
+                    "32bitX86Linux": null,
+                    "32bitX86Netbsd": null,
+                    "32bitX86Openbsd": null,
+                    "64bitX86Cygwin": null,
+                    "64bitX86Freebsd": null,
+                    "64bitX86Linux": null,
+                    "64bitX86Netbsd": null,
+                    "64bitX86Openbsd": null,
+                    "64bitX86Solaris": null,
+                    "64bitX86Mac": null,
+                    "32bitX86Mac": null,
+                    "arm64Mac": null,
+                    "armv7aMac": null,
+                    "64bitX86Windows": null,
+                    "32bitX86Windows": null,
+                    "wasm64Wasi": null,
+                    "wasm32Wasi": null,
+                    "64bitX86Redox": null,
+                    "powerpc64Linux": null,
+                    "powerpc64leLinux": null,
+                    "riscv32Linux": null,
+                    "riscv64Linux": null,
+                    "armNone": null,
+                    "armv6lNone": null,
+                    "arm64None": null,
+                    "avrNone": null,
+                    "32bitX86None": null,
+                    "64bitX86None": null,
+                    "powerpcNone": null,
+                    "msp430None": null,
+                    "riscv64None": null,
+                    "riscv32None": null,
+                    "vc4None": null,
+                    "or1kNone": null,
+                    "mmixMmixware": null,
+                    "jsGhcjs": null,
+                    "arm64Genode": null,
+                    "32bitX86Genode": null,
+                    "64bitX86Genode": null,
+                },
+            },
+        },
+        sources: [
             {
-                "name": "python",
-                "description": "A high-level dynamically-typed programming language",
+                "format": "git",
+                "git": "https://github.com/NixOS/nixpkgs.git",
+                "commit": "",
+                "attributePath": [],
+                "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
+                "date": "2021-02-24"
             }
         ],
-        "detailedDescription": "Python is a remarkably powerful dynamic programming language that\nis used in a wide variety of application domains. Some of its key\ndistinguishing features include: clear, readable syntax; strong\nintrospection capabilities; intuitive object orientation; natural\nexpression of procedural code; full modularity, supporting\nhierarchical packages; exception-based error handling; and very\nhigh level dynamic data types.\n",
-        "adjectives": {
-            "beta": false,
-            "unfree": false,
-            "insecure": false,
-            "broken": false,
-            "nixpkgs": {
-                "isPackage": true
-                    # "nixFunction", "application", TODO: formally define options
-            },
-        },
-        "links": {
-            "homepage": "http://python.org",
-            "icon": "http://python.org",
-        },
-        "platformSupport": {
-            "aarch64-linux": true,
-            "armv5tel-linux": true,
-            "armv6l-linux": true,
-            "armv7a-linux": true,
-            "armv7l-linux": true,
-            "mipsel-linux": true,
-            "i686-cygwin": true,
-            "i686-freebsd": true,
-            "i686-linux": true,
-            "i686-netbsd": true,
-            "i686-openbsd": true,
-            "x86_64-cygwin": true,
-            "x86_64-freebsd": true,
-            "x86_64-linux": true,
-            "x86_64-netbsd": true,
-            "x86_64-openbsd": true,
-            "x86_64-solaris": true,
-            "x86_64-darwin": true,
-            "i686-darwin": true,
-            "aarch64-darwin": true,
-            "armv7a-darwin": true,
-            "x86_64-windows": true,
-            "i686-windows": true,
-            "wasm64-wasi": true,
-            "wasm32-wasi": true,
-            "x86_64-redox": true,
-            "powerpc64-linux": true,
-            "powerpc64le-linux": true,
-            "riscv32-linux": true,
-            "riscv64-linux": true,
-            "arm-none": true,
-            "armv6l-none": true,
-            "aarch64-none": true,
-            "avr-none": true,
-            "i686-none": true,
-            "x86_64-none": true,
-            "powerpc-none": true,
-            "msp430-none": true,
-            "riscv64-none": true,
-            "riscv32-none": true,
-            "vc4-none": true,
-            "or1k-none": true,
-            "mmix-mmixware": true,
-            "js-ghcjs": true,
-            "aarch64-genode": true,
-            "i686-genode": true,
-            "x86_64-genode"
-        },
-    },
-    "sources": [
-        {
-            "git": "https://github.com/NixOS/nixpkgs.git",
-            "commit": "6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3",
-            "attributePath": [
-                "python27Full"
-            ],
-            "inputs": {},
-            "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
-            "date": "2021-02-24"
-        },
-    ]
-}
+    }
