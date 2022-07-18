@@ -15,13 +15,6 @@ serve(async (request, connectionInfo)=>{
             status: 200,
         })
     // 
-    // API/publish
-    // 
-    } else if (location == 'publish') {
-        return new Response('"got it"', {
-            status: 200,
-        })
-    // 
     // Unknown
     // 
     } else {

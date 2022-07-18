@@ -236,7 +236,7 @@ class Index {
         return outputList
     }
 
-    async function addEntryToIndex(entries) {
+    async function addEntriesToIndex(entries) {
         for (const each of entries) {
             if (
                 typeof each.name == 'string' && each.name
@@ -289,11 +289,14 @@ class Index {
         this.packageReadmeIndex.updateIdf()
     }
 
+    async function removeEntriesFromIndex(entries) {
+        // FIXME
+    }
+
     async save(path) {
         return FileSystem.write({
             path: this.path,
             data: JSON.stringify(this),
-            force=true
         })
     }
 }
