@@ -1,3 +1,2 @@
 - `nix-env -iA nixpkgs.git`
-- `nix-env -iA nixpkgs.meilisearch`
 - `nix-env -iA nixpkgs.deno`

@@ -2,13 +2,16 @@ import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.j
 import { DOMParser, Element, } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts"
 import { createHash } from "https://deno.land/std@0.139.0/hash/mod.ts"
 
+export const tempFolder = `${FileSystem.thisFolder}/../cache.ignore/`
+await FileSystem.ensureIsFolder(tempFolder)
+
 export const hashJsonPrimitive = (value) => createHash("md5").update(JSON.stringify(value)).toString()
 
-export hash(string) {
+export function hash(string) {
     return parseInt(sha256(string, 'utf-8', 'hex'), 16) 
 }
 
-export getInnerTextOfHtml(htmlText) {
+export function getInnerTextOfHtml(htmlText) {
     const doc = new DOMParser().parseFromString(htmlText,
         "text/html",
     )

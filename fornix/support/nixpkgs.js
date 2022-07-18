@@ -1,32 +1,37 @@
 #!/usr/bin/env -S deno run --allow-all
 
-const { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } = await import(`https://deno.land/x/quickr@0.3.32/main/run.js`)
-const { FileSystem } = await import(`https://deno.land/x/quickr@0.3.32/main/file_system.js`)
-const { Console, yellow } = await import(`https://deno.land/x/quickr@0.3.32/main/console.js`)
+import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.js"
+import { run, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo, zipInto, mergeInto, returnAsString, } from "https://deno.land/x/quickr@0.3.34/main/run.js"
+import { Console, yellow } from "https://deno.land/x/quickr@0.3.34/main/console.js"
 const { recursivelyAllKeysOf, get, set, remove, merge, compare } = await import(`https://deno.land/x/good@0.5.8/object.js`)
-const { jsonRead } = await import(`../support/basics.js`)
-
-const cacheFolder = `${FileSystem.thisFolder}/../cache.ignore/nixpkgs/jsons`; await FileSystem.ensureIsFolder(cacheFolder)
-const nixpkgsFolder = `${FileSystem.thisFolder}/../cache.ignore/nixpkgs/repo`
-const allCommitsPath = `${FileSystem.thisFolder}/../cache.ignore/nixpkgs/all_commits.txt`
+const { tempFolder, jsonRead } = await import(`../support/utils.js`)
 
 const realHome = Console.env.HOME
+const fakeHome = await FileSystem.ensureIsFolder(`${tempFolder}/fake_home`) 
+const cacheFolder = await FileSystem.ensureIsFolder(`${tempFolder}/nixpkgs/jsons`) 
+const nixpkgsFolder = `${tempFolder}/nixpkgs/repo`
+const allCommitsPath = `${tempFolder}/nixpkgs/all_commits.txt`
 
+// Setup env for nix
 Console.env.NIXPKGS_ALLOW_BROKEN = "1"
 Console.env.NIXPKGS_ALLOW_UNFREE = "1"
 Console.env.NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM = "1"
 Console.env.NIX_PATH = ""
-Console.env.HOME = `${cacheFolder}/../`
+Console.env.HOME = fakeHome
+Console.env.TEMPDIR = await FileSystem.ensureIsFolder(`${tempFolder}/temp`)
+// TODO: nix path to cert files
 
+// 
 // create config to broaden search results (especially on really old commits)
+// 
 await FileSystem.ensureIsFile(`${realHome}/.gitconfig`)
-await FileSystem.copy({from: `${realHome}/.gitconfig`, to: `${Console.env.HOME}/.gitconfig`})
+await FileSystem.copy({from: `${realHome}/.gitconfig`, to: `${fakeHome}/.gitconfig`})
 await FileSystem.absoluteLink({
     existingItem: `${realHome}/Library/`,
-    newItem: `${Console.env.HOME}/Library/`,
+    newItem: `${fakeHome}/Library/`,
 })
 await FileSystem.write({
-    path: `${Console.env.HOME}/config.nix`,
+    path: `${fakeHome}/config.nix`,
     data: `
         let 
             permittedInsecurePackages = [
@@ -52,6 +57,11 @@ if (!folderInfo.isFolder) {
 const latestCommitHash = await run`git rev-parse HEAD ${Stdout(returnAsString)} ${Cwd(nixpkgsFolder)}`
 
 
+// 
+// 
+// API
+// 
+// 
 
 let allCommitsCache = null
 export async function allCommitsAndDates() {
@@ -80,7 +90,6 @@ export async function allCommitsFor({paths}) {
 }
 
 export async function getReleventCommitsFor({packageName, startCommit}) {
-    console.log("getReleventCommitsFor")
     startCommit = startCommit || latestCommitHash
     const packages = await getPackageInfo({
         hash: startCommit,
@@ -96,7 +105,6 @@ export async function getReleventCommitsFor({packageName, startCommit}) {
             relativePaths.add(each.meta.path)
         }
     }
-    console.debug(`    relativePaths.size is:`,relativePaths.size)
 
     // 
     // get commits
@@ -104,12 +112,13 @@ export async function getReleventCommitsFor({packageName, startCommit}) {
     return await allCommitsFor({paths:[...relativePaths]})
 }
 
-
 export async function getPackageInfo({hash, packageName}) {
+    hash = hash || latestCommitHash
     const path = `${cacheFolder}/${hash}.json`
     let output = await jsonRead(path)
     if (output == null) {
         // pretend to be linux since it has the most wide support
+        // TODO: probably change this in the future
         await run`nix-env -qa --json --arg system \"x86_64-linux\" --file ${`https://github.com/NixOS/nixpkgs/archive/${hash.trim()}.tar.gz`} ${Stdout(Overwrite(path))}`
         output = await jsonRead(path)
     }
