@@ -16,7 +16,6 @@ function tokenizeChunks(text) {
     let outputs = []
     for (const eachChar of [...text]) {
         currentChunk += eachChar
-        console.debug(`currentChunk is:`,currentChunk)
         if (currentChunk.length > chunkSize) {
             currentChunk = currentChunk.slice(-chunkSize)
         }
@@ -80,7 +79,7 @@ class Bm25Index {
             return
         }
 
-        const tokens = tokenizeWords(body)
+        const tokens = this.tokenizer(body)
         const documentTerms = {} // Will hold unique terms and their counts and frequencies
         const indexForDoc = { // indexForDoc will eventually be added to the documents database
             id,
@@ -165,7 +164,7 @@ class Bm25Index {
         const values = Object.values(resultsById).map(
             each=>({
                 id: each.id,
-                score: [ each.wordScore, each.chunkScore ],
+                score: [ each.wordScore||0, each.chunkScore||0 ],
             })
         )
         values.sort(maxVersionSorter(each=>each.score))
@@ -173,7 +172,7 @@ class Bm25Index {
     }
 
     innerSearch(query, numberOfResults=50, tokenizer=tokenizeChunks) {
-        const queryTerms = tokenizeWords(query)
+        const queryTerms = tokenizer(query)
         const results = []
         
         let worstAcceptableScore = 0
@@ -372,4 +371,3 @@ async function smokeTest() {
     console.debug(`index is:`,index)
     console.debug(`results is:`,results)
 }
-smokeTest()
