@@ -11,20 +11,51 @@ function tokenizeWords(text) {
 }
 
 function tokenizeChunks(text) {
+    const chunkSize = 3
     let currentChunk = ""
     let outputs = []
-    for (const each of [...text]) {
-        currentChunk += each
-        if (currentChunk.length > 2) {
+    for (const eachChar of [...text]) {
+        currentChunk += eachChar
+        console.debug(`currentChunk is:`,currentChunk)
+        if (currentChunk.length > chunkSize) {
+            currentChunk = currentChunk.slice(-chunkSize)
+        }
+        if (currentChunk.length == chunkSize) {
             outputs.push(currentChunk)
         }
-        currentChunk = currentChunk.slice(0,3)
     }
     return outputs
 }
 
 function tokenizeChunksAndWords(text) {
     return tokenizeChunks(text).concat(tokenizeWords(text))
+}
+
+const maxVersionSorter = (createVersionList)=> {
+    const compareLists = (listsA, listsB)=> {
+        // b-a => bigger goes to element 0
+        const comparisonLevels = listsB.map((each, index)=>{
+            let b = each || 0
+            let a = listsA[index] || 0
+            const aIsArray = a instanceof Array
+            const bIsArray = b instanceof Array
+            if (!aIsArray && !bIsArray) {
+                return b - a
+            }
+            a = aIsArray ? a : [ a ]
+            b = bIsArray ? b : [ b ]
+            // recursion for nested lists
+            return compareLists(a, b)
+        })
+        for (const eachLevel of comparisonLevels) {
+            // first difference indicates a winner
+            if (eachLevel !== 0) {
+                return eachLevel
+            }
+        }
+        return 0
+    }
+    return (a,b)=>compareLists(createVersionList(a), createVersionList(b))
 }
 
 class Bm25Index {
@@ -109,7 +140,39 @@ class Bm25Index {
             this.terms[term].idf = Math.max(Math.log10(num / denom), 0.01)
         }
     }
+    
     search(query, numberOfResults=50) {
+        const resultsById = {}
+        // main results
+        const resultsFromWords  = this.innerSearch(query, numberOfResults, tokenizeWords)
+        // sparse results
+        const newNumberOfResults = resultsFromWords.length + (numberOfResults-resultsFromWords.length) // larger because of possible duplicates
+        const resultsFromChunks = this.innerSearch(query, newNumberOfResults, tokenizeChunks)
+
+        for (const each of resultsFromWords) {
+            resultsById[each.id] = {
+                id: each.id,
+                wordScore: each.score,
+            }
+        }
+        for (const each of resultsFromChunks) {
+            resultsById[each.id] = {
+                ...resultsById[each.id],
+                id: each.id,
+                chunkScore: each.score,
+            }
+        }
+        const values = Object.values(resultsById).map(
+            each=>({
+                id: each.id,
+                score: [ each.wordScore, each.chunkScore ],
+            })
+        )
+        values.sort(maxVersionSorter(each=>each.score))
+        return values
+    }
+
+    innerSearch(query, numberOfResults=50, tokenizer=tokenizeChunks) {
         const queryTerms = tokenizeWords(query)
         const results = []
         
@@ -198,6 +261,7 @@ class Index {
 
     async query(string, numberOfResults) {
         const wordsAndChunks = tokenizeChunksAndWords(string)
+        console.debug(`wordsAndChunks is:`,wordsAndChunks)
         const directPackageIndexResults      = this.directPackageIndex.search(string, numberOfResults).map(     each=>({...each,  directPackageScore:      each.score}))
         const packageDescriptionIndexResults = this.packageDescriptionIndex.search(string, numberOfResults).map(each=>({...each,  packageDescriptionScore: each.score}))
         const packageReadmeIndexResults      = this.packageReadmeIndex.search(string, numberOfResults).map(     each=>({...each,  packageReadmeScore:      each.score}))
@@ -210,19 +274,7 @@ class Index {
         }
         
         const unsortedCombinedResults = Object.values(resultsById)
-        unsortedCombinedResults.sort((a,b)=>{
-            // b-a => bigger goes to element 0
-            const firstLevel  = b.directPackageScore      - a.directPackageScore
-            const secondLevel = b.packageDescriptionScore - a.packageDescriptionScore 
-            const thirdLevel  = b.packageReadmeScore      - a.packageReadmeScore 
-            if (firstLevel !== 0) {
-                return firstLevel
-            } else if (secondLevel !== 0) {
-                return secondLevel
-            } else {
-                return thirdLevel
-            }
-        })
+        unsortedCombinedResults.sort(maxVersionSorter(each=>[ each.directPackageScore, each.packageDescriptionScore, each.packageReadmeScore ]))
         
         const outputList = []
         for (let each of unsortedCombinedResults) {
@@ -316,7 +368,7 @@ async function smokeTest() {
             description: "the latest python",
         },
     ])
-    const results = await index.query("python3", 10)
+    const results = await index.query("python", 10)
     console.debug(`index is:`,index)
     console.debug(`results is:`,results)
 }
