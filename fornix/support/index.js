@@ -242,13 +242,7 @@ class Index {
         this.packageReadmeIndex      = new Bm25Index({ tokenizer: tokenizeWords })
         this.path = path
         if (path) {
-            try {
-                const fileAsString = Deno.readTextFileSync(path)
-                const obj = JSON.parse(fileAsString)
-                Object.assign(this, obj)
-            } catch (error) {
-                
-            }
+            // FIXME: add loading from file
         }
     }
 
@@ -348,6 +342,7 @@ class Index {
     }
 
     async save(path) {
+        // FIXME: add saving to file (will not work this way)
         return FileSystem.write({
             path: this.path,
             data: JSON.stringify(this),
