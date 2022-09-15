@@ -1,5 +1,5 @@
 import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.js"
-import { hash, getInnerTextOfHtml, curl } from "./utils.js"
+import { sha256, getInnerTextOfHtml, curl } from "./utils.js"
 
 function tokenizeWords(text) {
     return text.toLowerCase()
@@ -24,7 +24,7 @@ function tokenizeChunks(text) {
 }
 
 function tokenizeChunksAndWords(text) {
-    return tokenizeChunks(string).concat(tokenizeWords(string))
+    return tokenizeChunks(text).concat(tokenizeWords(text))
 }
 
 class Bm25Index {
@@ -35,14 +35,12 @@ class Bm25Index {
         this.terms = {}
         this.b = b // See: https://www.elastic.co/blog/practical-bm25-part-3-considerations-for-picking-b-and-k1-in-elasticsearch
         this.k1 = k1
-        this.tokenizer = tokenizer || (string)=>string.split(/ +|\b/)
+        this.tokenizer = tokenizer || ((string)=>string.split(/ +|\b/))
     }
     get totalDocuments() {
         return Object.keys(this.documents).length
     }
     addDocument({id, body, shouldUpdateIdf=true}) {
-        // TODO: generate an ID automatically based on hashing the body
-
         if (id === undefined) { throw new Error(1000, 'ID is a required property of documents.'); }
         if (body === undefined) { throw new Error(1001, 'Body is a required property of documents.'); }
         
@@ -182,12 +180,12 @@ class Index {
         this.packageReadmeIndex      = new Bm25Index({ tokenizer: tokenizeWords })
         this.path = path
         if (path) {
-            const itemInfo = FileSystem.info()
-            // load all data if file exists
-            if (itemInfo.exists) {
+            try {
                 const fileAsString = Deno.readTextFileSync(path)
                 const obj = JSON.parse(fileAsString)
                 Object.assign(this, obj)
+            } catch (error) {
+                
             }
         }
     }
@@ -200,9 +198,9 @@ class Index {
 
     async query(string, numberOfResults) {
         const wordsAndChunks = tokenizeChunksAndWords(string)
-        const directPackageIndexResults      = this.directPackageIndex.search(query, numberOfResults).map(     each=>({...each,  directPackageScore:      each.score}))
-        const packageDescriptionIndexResults = this.packageDescriptionIndex.search(query, numberOfResults).map(each=>({...each,  packageDescriptionScore: each.score}))
-        const packageReadmeIndexResults      = this.packageReadmeIndex.search(query, numberOfResults).map(     each=>({...each,  packageReadmeScore:      each.score}))
+        const directPackageIndexResults      = this.directPackageIndex.search(string, numberOfResults).map(     each=>({...each,  directPackageScore:      each.score}))
+        const packageDescriptionIndexResults = this.packageDescriptionIndex.search(string, numberOfResults).map(each=>({...each,  packageDescriptionScore: each.score}))
+        const packageReadmeIndexResults      = this.packageReadmeIndex.search(string, numberOfResults).map(     each=>({...each,  packageReadmeScore:      each.score}))
         
         const allResults = directPackageIndexResults.concat(packageDescriptionIndexResults, packageReadmeIndexResults)
 
@@ -228,28 +226,33 @@ class Index {
         
         const outputList = []
         for (let each of unsortedCombinedResults) {
-            outputList.append({
+            outputList.push({
                 package: this.packages.get(each.id), // TODO: consider making this read from disk so that not all packages remain in memory)
-                score: [directPackageScore,packageDescriptionScore,packageReadmeScore],
+                score: [
+                    each.directPackageScore || 0,
+                    each.packageDescriptionScore || 0,
+                    each.packageReadmeScore || 0,
+                ],
             })
         }
         return outputList
     }
-
-    async function addEntriesToIndex(entries) {
+    
+    async addEntriesToIndex(entries) {
         for (const each of entries) {
             if (
-                typeof each.name == 'string' && each.name
+                typeof each.name == 'string' && each.name &&
                 typeof each.description == 'string' && each.description
             ) {
                 const key = JSON.stringify({name: each.name, description: each.description})
-                const id = hash(key)
+                const id = await sha256(key)
                 // figure out if its part of an existing name+description
                 // if yes, then dont give any pre-existing words any weight
-                if (id in this.packages) {
+                if (this.packages.has(id)) {
                     // only add new words
                     // TODO: lowish priority
                 } else {
+                    this.packages.set(id, each)
                     // 
                     // update indicies
                     // 
@@ -289,7 +292,7 @@ class Index {
         this.packageReadmeIndex.updateIdf()
     }
 
-    async function removeEntriesFromIndex(entries) {
+    async removeEntriesFromIndex(entries) {
         // FIXME
     }
 
@@ -300,3 +303,21 @@ class Index {
         })
     }
 }
+
+async function smokeTest() {
+    const index = new Index("smoke_test.ignore.json")
+    await index.addEntriesToIndex([
+        {
+            name: "howdy",
+            description: "a demo package used for smoke testing the bm25 based index",
+        },
+        {
+            name: "python3",
+            description: "the latest python",
+        },
+    ])
+    const results = await index.query("python3", 10)
+    console.debug(`index is:`,index)
+    console.debug(`results is:`,results)
+}
+smokeTest()
