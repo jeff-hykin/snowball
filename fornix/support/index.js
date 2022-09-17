@@ -1,5 +1,5 @@
 import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.js"
-import { sha256, getInnerTextOfHtml, curl } from "./utils.js"
+import { sha256, maxVersionSorter, getInnerTextOfHtml, curl } from "./utils.js"
 
 function tokenizeWords(text) {
     return text.toLowerCase()
@@ -28,33 +28,6 @@ function tokenizeChunks(text) {
 
 function tokenizeChunksAndWords(text) {
     return tokenizeChunks(text).concat(tokenizeWords(text))
-}
-
-const maxVersionSorter = (createVersionList)=> {
-    const compareLists = (listsA, listsB)=> {
-        // b-a => bigger goes to element 0
-        const comparisonLevels = listsB.map((each, index)=>{
-            let b = each || 0
-            let a = listsA[index] || 0
-            const aIsArray = a instanceof Array
-            const bIsArray = b instanceof Array
-            if (!aIsArray && !bIsArray) {
-                return b - a
-            }
-            a = aIsArray ? a : [ a ]
-            b = bIsArray ? b : [ b ]
-            // recursion for nested lists
-            return compareLists(a, b)
-        })
-        for (const eachLevel of comparisonLevels) {
-            // first difference indicates a winner
-            if (eachLevel !== 0) {
-                return eachLevel
-            }
-        }
-        return 0
-    }
-    return (a,b)=>compareLists(createVersionList(a), createVersionList(b))
 }
 
 class Bm25Index {
@@ -287,11 +260,11 @@ class Index {
         for (const each of entries) {
             if (
                 typeof each.name == 'string' && each.name &&
-                typeof each.description == 'string' && each.description
+                typeof each.blurb == 'string' && each.blurb
             ) {
-                const key = JSON.stringify({name: each.name, description: each.description})
+                const key = JSON.stringify({name: each.name, blurb: each.blurb})
                 const id = await sha256(key)
-                // figure out if its part of an existing name+description
+                // figure out if its part of an existing name+blurb
                 // if yes, then dont give any pre-existing words any weight
                 if (this.packages.has(id)) {
                     // only add new words
@@ -308,7 +281,7 @@ class Index {
                     })
                     this.packageDescriptionIndex.addDocument({
                         id,
-                        body: each.description,
+                        body: each.blurb,
                         shouldUpdateIdf: false,
                     })
                     
@@ -355,11 +328,11 @@ async function smokeTest() {
     await index.addEntriesToIndex([
         {
             name: "howdy",
-            description: "a demo package used for smoke testing the bm25 based index",
+            blurb: "a demo package used for smoke testing the bm25 based index",
         },
         {
             name: "python3",
-            description: "the latest python",
+            blurb: "the latest python",
         },
     ])
     const results = await index.query("python", 10)
