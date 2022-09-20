@@ -1,20 +1,23 @@
 {
-        publicationSignatures: {}, /// key=public key, value=signature given the JSON string of everything below
+        publicationSignatures: {
+            # key=public signature key, value=signature given the JSON string of everything below
+            "adkfaklfjlkjih0924ojt42oiut-429u24...": {
+                signature: "alkdfj-942u-24jtoi24jktl42tj42iht42t..."
+            }
+        },
 
         name: "",
         blurb: "",
-        identifiers: {
-            licenses: [],
-            authentication: {
-                sourceHashSha256: "",
-                sourceHashSha256Signatures: {},  // key=public key, value=signature given the hash as a base64 string
-            },
-        },
         flavor: {
             versionAsString: "",
             versionAsList: [],
             inputs: {}, // keys are package names, values are objects that include a blurb
             outputs: {}, // keys are paths, values are objects
+        },
+        identifiers: {
+            licenses: [],
+            sourceHashSha256: "",
+            sourceHashSha256Signatures: {},  // key=public key, value=signature given the hash as a base64 string
         },
         additionalInfo: {
             links: {
@@ -87,12 +90,29 @@
         },
         sources: [
             {
+                "url": "https://github.com/NixOS/nixpkgs/archive/e696cfa9eae0d973126399f90d2e1fd87b980ced.zip", # when URL is downloaded
+                "format": "zip",
+                "internalTargets": {
+                    "nixRootFolder": ".",
+                    "nixAttributePath": [],
+                },
+                "customInfo": {
+                    "date": "2021-02-24",
+                    "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
+                },
+            },
+            {
+                "url": "https://github.com/NixOS/nixpkgs.git",
                 "format": "git",
-                "git": "https://github.com/NixOS/nixpkgs.git",
-                "commit": "",
-                "attributePath": [],
-                "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
-                "date": "2021-02-24"
+                "internalTargets": {
+                    "gitCommit": "e696cfa9eae0d973126399f90d2e1fd87b980ced",
+                    "nixRootFolder": ".",
+                    "nixAttributePath": [],
+                },
+                "customInfo": {
+                    "date": "2021-02-24",
+                    "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
+                },
             }
         ],
     }

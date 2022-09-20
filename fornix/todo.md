@@ -1,0 +1,4 @@
+- Get signature CLI tool working
+- Try publishing a module to the database server
+- Try unpublishing to the database server
+    - will need to edit storage system to keep track of who adds what info

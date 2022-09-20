@@ -3,6 +3,8 @@ import { debounceFinish } from "../support/utils.js"
 
 const defaultSaveRate = 10000 
 
+// FIXME: each of these needs a contributor mapping, and can be deleted when that mapping level equals zero
+
 const makeNameStorage = async (folder) => {
     const path = `${folder}/names.json`
     const names = new Set(JSON.parse((await FileSystem.read(path)) || '[]'))
