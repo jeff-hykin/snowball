@@ -5,6 +5,7 @@ import * as Encryption from "https://deno.land/x/good@0.7.2/encryption.js"
 import { sha256, maxVersionSorter, stableStringify } from "../support/utils.js"
 import { Index } from "../support/index.js"
 import { load } from "../support/data_storage.js"
+import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.2/value.js"
 
 const { names, blurbs, flavors, sources, ids } = await load({ folder: `${FileSystem.thisFolder}/default_data.ignore/` })
 const index = new Index("smoke_test.ignore.json")
