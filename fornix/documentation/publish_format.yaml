@@ -1,3 +1,8 @@
+# only the creator can change
+    # flavor 
+# others can
+    # add sources with attributes
+    
 {
     # mainIdentity: "example_identity",
     # flavorSignature: "",

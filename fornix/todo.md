@@ -1,4 +1,16 @@
-- Get signature CLI tool working
+- DONE Get signature CLI tool working
+- Finalize the structure:
+  - flavors are numbered and are "owned" 
+    - most fields are mutable
+    - they represent a single document in the search index
+  - instances are not owned, can be published by anyone
+  - search is
+    - 1. by name
+    - 2. by blurb (if more than one result)
+    - 3. by flavorNumber+advertiser (if more than one result)
+    - 4. by version (filtered by adjectives)
+    - 5. by hash (if more than one)
+    - 6. list all sources
 - Try publishing a module to the database server
 - Try unpublishing to the database server
     - will need to edit storage system to keep track of who adds what info

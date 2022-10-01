@@ -219,9 +219,10 @@ serve(async (request, connectionInfo)=>{
             // 
             // TODO: validate that the given public key can unlock the lock, and that the result is the hash of the published data
             if (!(data.name && data.blurb && data.flavor && data.sources && data.publicationSignatures)) { // FIXME: make this a more rigourous check
-                return new Response(`{ "error": [ "name, blurb, flavor, sources, or publicationSignatures was empty/null/missing from the following object", ${JSON.stringify(data)} ] }`, {
-                    status: 400,
-                })
+                throw {
+                    error: "name, blurb, flavor, sources, or publicationSignatures was empty/null/missing from the following object",
+                    data,
+                }
             }
             const dataCopy = {...data}
             delete dataCopy.publicationSignatures
@@ -234,11 +235,38 @@ serve(async (request, connectionInfo)=>{
                     publicKey: key, 
                 })
                 if (!isValid) {
-                    return new Response(`{ "error": [ "it appears one of the signatures failed the validation check for its respective public key", ${JSON.stringify({failedKey: key, failedSignature: signedMessage, messageWithoutSignature: text, allSignatures: data.publicationSignatures, })} ] }`, {
-                        status: 400,
-                    })
+                    throw {
+                        "error": "it appears one of the signatures failed the validation check for its respective public key",
+                        data: {
+                            failedKey: key,
+                            failedSignature: signedMessage,
+                            messageWithoutSignature: text,
+                            allSignatures: data.publicationSignatures,
+                        }
+                    }
                 }
-            }
+                const dataCopy = {...data}
+                delete dataCopy.publicationSignatures
+                const text = JSON.stringify(dataCopy)
+                for (const [key, value] of Object.entries(data.publicationSignatures)) {
+                    const {signature} = value
+                    const isValid = await Encryption.verify({
+                        signedMessage: signed,
+                        whatMessageShouldBe: text,
+                        publicKey: key, 
+                    })
+                    if (!isValid) {
+                        throw {
+                            "error": "it appears one of the signatures failed the validation check for its respective public key",
+                            "data": {
+                                failedKey: key,
+                                failedSignature: signedMessage,
+                                messageWithoutSignature: text,
+                                allSignatures: data.publicationSignatures, 
+                            },
+                        }
+                    }
+                }
 
             // 
             // standardize the format
@@ -293,23 +321,13 @@ serve(async (request, connectionInfo)=>{
                     ),
                 )
                 
-                // 
-                // ids
-                // 
-                ids[id] = {
-                    blurb: data.blurb,
-                    name: data.name,
-                }
-            
-            // FIXME: handle updating all the indexes with new information
-                // verify the auth signature
-                // add a date
-                // remove a document from the index if needed (TODO: add that functionality to the index)
-                // add to the overall index if needed
-                // add to the user+flavor index
-            return new Response('{ "value": "got it" }', {
-                status: 200,
-            })
+                // FIXME: handle updating all the indexes with new information
+                    // verify the auth signature
+                    // add a date
+                    // remove a document from the index if needed (TODO: add that functionality to the index)
+                    // add to the overall index if needed
+                    // add to the user+flavor index
+                return { "value": "got it" }
         // 
         // getters
         // 

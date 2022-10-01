@@ -1,4 +1,6 @@
-import { FileSystem } from "https://deno.land/x/quickr@0.3.34/main/file_system.js"
+import { FileSystem } from 'https://deno.land/x/quickr@0.3.44/main/file_system.js'
+import { Console, clearStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, hidden, strikethrough, visible, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.3.44/main/console.js"
+import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.2/string.js"
 import { DOMParser, Element, } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts"
 import { createHash } from "https://deno.land/std@0.139.0/hash/mod.ts"
 
@@ -170,4 +172,39 @@ export const maxVersionSorter = (createVersionList)=> {
         return 0
     }
     return (a,b)=>compareLists(createVersionList(a), createVersionList(b))
+}
+
+export async function readIdenityFile(identitiesPath) {
+    const fileInfo = await FileSystem.info(identitiesPath)
+    let idenities
+    if (!fileInfo.exists) {
+        idenities = {}
+    } else if (fileInfo.exists) {
+        let contents
+        try {
+            contents = await FileSystem.read(identitiesPath)
+            if (!contents) {
+                idenities = {}
+            } else {
+                idenities = JSON.parse(contents)
+            }
+        } catch (error) {
+        }
+        if (!(idenities instanceof Object)) {
+            console.error(`It appears the idenities file: ${identitiesPath} is corrupted (not a JSON object)\n\nNOTE: this file might contain important information so you may want to salvage it.`)
+            console.log(`Here are the current contents (indented for visual help):\n${indent(contents)}`)
+            while (1) {
+                let shouldDelete = false
+                const isImportant = await Console.askFor.yesNo(`Do the contents look important?`)
+                if (!isImportant) {
+                    shouldDelete = await Console.askFor.yesNo(`Should I DELETE this and overwrite it with new keys? (irreversable)`)
+                }
+                if (isImportant || !shouldDelete) {
+                    console.log("Okay, this program will quit. Please fix the contents by making them into a valid JSON object.")
+                    Deno.exit()
+                }
+            }
+        }
+    }
+    return idenities
 }
