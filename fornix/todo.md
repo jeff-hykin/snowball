@@ -1,4 +1,9 @@
 - DONE Get signature CLI tool working
+- cli tool:
+    - create-identity
+    - publish
+    - unpublish
+    - overthrow-identity
 - Finalize the structure:
   - flavors are numbered and are "owned" 
     - most fields are mutable

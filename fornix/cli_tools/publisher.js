@@ -1,104 +1,92 @@
 import { FileSystem } from 'https://deno.land/x/quickr@0.3.44/main/file_system.js'
+import { run, throwIfFails, zipInto, mergeInto, returnAsString, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo } from "https://deno.land/x/quickr@0.5.0/main/run.js"
 import { Console, clearStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, hidden, strikethrough, visible, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.3.44/main/console.js"
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.2/string.js"
 import * as Encryption from "https://deno.land/x/good@0.7.2/encryption.js"
 import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.2/value.js"
-import { readIdenityFile } from "../support/utils.js"
+import { IdentityManager } from "../support/idenity_manager.js"
 
 // 
 // parse args
 // 
 const [ action, ...args ] = Deno.args
 const namedArgs = {
-    identitiesFilepath: `${FileSystem.home}/.idenities.json`,
+    advancedIdentitiesFilepath: IdentityManager.defaultPath,
     identity: null,
 }
 let index = -1
 for (const each of args) {
     index += 1
     if (each.startsWith("--")) {
-        namedArgs[each.slice(2,)] = args[index+1]
+        let key = each.slice(2,)
+        // kebab case to camel case
+        key = toCamelCase(key)
+        namedArgs[key] = args[index+1]
     }
 }
 
 // 
 // pick operation
 // 
-if (action == "createIdentity") { 
-    // 
-    // load identity file
-    // 
-    const idenities = await readIdenityFile(namedArgs.identitiesFilepath)
-    
-    // 
-    // get identity name
-    // 
-    let identityName = namedArgs.identity
-    if (!identityName) {
-        createIdentity: while (1) {
-            identityName = await Console.askFor.line(`What should I call the new identity?`)
-            if (!identityName.length) {
-                console.error("The name can't be empty")
-                continue createIdentity
-            } else if (idenities[identityName]) {
-                console.log(``)
-                console.warn("It looks like there's already an identity with that name")
-                const shouldDelete = await Console.askFor.yesNo(`Should I DELETE that identity and overwrite it with new keys? (irreversable)`)
-                if (!shouldDelete) {
-                    continue createIdentity
-                }
-                break
-            }
-            break
-        }
+try {
+    if (action == "create-identity") {
+        await IdentityManager.createIdentity(namedArgs)
+    } else if (action == "publish") {
+        await publish({ entryPath: args[0],  ...namedArgs})
+    } else if (action == 'unpublish') {
+        // FIXME
+    } else {
+        console.log(`Sorry I didn't recognize that command (${action})`)
+        console.log(`The available commands are:`)
+        console.log(`    create-identity`)
+        console.log(`    publish`)
+        console.log(`    unpublish`)
     }
+} catch (error) {
+    if (error instanceof UserPickedCancel) {
+        Deno.exit(1)
+    }
+}
 
-    // 
-    // make keys
-    // 
-    const numberOfKeys = 4
-    const keySets = []
-    for (const each in [...Array(numberOfKeys)]) {
-        console.log(`Generating keys, set ${1+each} of ${numberOfKeys}`)
-        keySets.push(await Encryption.generateKeys())
-    }
-    
-    // 
-    // save keys
-    // 
-    idenities[identityName] = {
-        mainKeyset: keySets[0],
-        overthrowKeysets: keySets.slice(1).map(
-            each=>({
-                encryptionKey: each.encryptionKey,
-                verificationKey: each.verificationKey,
-            })
-        ),
-    }
-    
-    await FileSystem.write({
-        data: JSON.stringify(idenities,0,4),
-        path: identitiesPath,
-    })
-    console.log(`Main keys saved under "${identityName}" in ${identitiesPath}\n\n`)
-    console.log("I'm about to print out your OVERTHROW keys\n    Store each of these in different physical locations\n    (on your phone, on paper, in a draft email, etc)\n    If your main key gets compromised\n    two of these keys can be combined to 'overthrow' your main key.\n\n    THERE IS NO OTHER BACKUP/RECOVERY SYSTEM\n")
-    await Console.askFor.yesNo("Understand?")
-    let number = 0
-    for (let eachKeySet of keySets.slice(1)) {
-        number += 1
-        console.log(`\noverthrow key ${number}:`)
-        console.log(`    decryptionKey: ${eachKeySet.decryptionKey}`)
-        console.log(`    signatureKey: ${eachKeySet.signatureKey}`)
-    }
-} else if (action == "publish") {
+async function publish(namedArgs) {
     // 
     // handle args (could use improving)
     // 
-    const jsonDataToPublish = await FileSystem.read(args[0])
-    if (!namedArgs.identity) {
-        throw Error(`Please include a '--idenity WHICH_IDENITY' argument. If you don't have an idenity, create one with the 'publisher createIdentity' command`)
+    const jsonDataToPublish = await FileSystem.read(namedArgs.entryPath)
+    let idenities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
+    const hasNoIdentites = Object.keys(idenities).length == 0
+    if (hasNoIdentites) {
+        console.log("")
+        console.log("")
+        console.log("So to publish a package, you need an identity")
+        console.log(`I see you don't have any (I checked ${namedArgs.advancedIdentitiesFilepath})`)
+        console.log("so lets take 5sec and set one up")
+        if (!await Console.askFor.yesNo("Sound good?")) {
+            console.log(`Okay. And hey, just FYI if this is the wrong path: ${namedArgs.advancedIdentitiesFilepath}`)
+            console.log(`You can change it using the --advanced-identities-filepath argument`)
+            console.log(``)
+            console.log(`Feel free to re-run this when the identity issue is worked out`)
+            throw UserPickedExit()
+        } else {
+            await createIdentity(namedArgs)
+        }
+        // reload the file, now that an identity has been created
+        idenities = await readIdentityFile(namedArgs.advancedIdentitiesFilepath)
     }
-    const idenities = await readIdenityFile(namedArgs.identitiesFilepath)
+    
+    if (namedArgs.identity) {
+        const signatureKey = idenities[namedArgs.identity]?.mainKeyset?.signatureKey
+        const verificationKey = idenities[namedArgs.identity]?.mainKeyset?.verificationKey
+    }
+    if (idenities[namedArgs.identity])
+
+    Object.keys(idenities).identity == 0
+    
+    if (!namedArgs.identity && ) {
+        console.log(`I see you didn't include an --identity argument`)
+        await Console.askFor.line(``)
+        throw Error(`Please include a '--identity WHICH_IDENITY' argument. If you don't have an identity, create one with the 'publisher createIdentity' command`)
+    }
     
     // TODO: add a lot more structure checks/warnings/errors
 
