@@ -6,6 +6,10 @@ import * as Encryption from "https://deno.land/x/good@0.7.2/encryption.js"
 import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.2/value.js"
 import { IdentityManager } from "../support/idenity_manager.js"
 
+
+// overview
+    // every package needs a package name and an identity
+
 // 
 // parse args
 // 
