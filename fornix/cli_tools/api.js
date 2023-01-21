@@ -1,10 +1,19 @@
 import { FileSystem } from 'https://deno.land/x/quickr@0.3.44/main/file_system.js'
 import { run, throwIfFails, zipInto, mergeInto, returnAsString, Timeout, Env, Cwd, Stdin, Stdout, Stderr, Out, Overwrite, AppendTo } from "https://deno.land/x/quickr@0.5.0/main/run.js"
 import { Console, clearStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, hidden, strikethrough, visible, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.3.44/main/console.js"
-import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.2/string.js"
-import * as Encryption from "https://deno.land/x/good@0.7.2/encryption.js"
-import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.2/value.js"
-import { IdentityManager } from "../support/idenity_manager.js"
+import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.8/string.js"
+import * as Encryption from "https://deno.land/x/good@0.7.8/encryption.js"
+import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.8/value.js"
+import { IdentityManager } from "../support/identity_manager.js"
+import { parse } from "https://deno.land/std@0.173.0/flags/mod.ts"
+
+import {
+  Checkbox,
+  Confirm,
+  Input,
+  Number,
+  prompt,
+} from "https://deno.land/x/cliffy@v0.25.7/prompt/mod.ts"
 
 
 // overview
@@ -18,16 +27,10 @@ const [ action, ...args ] = Deno.args
 const namedArgs = {
     advancedIdentitiesFilepath: IdentityManager.defaultPath,
     identity: null,
-}
-let index = -1
-for (const each of args) {
-    index += 1
-    if (each.startsWith("--")) {
-        let key = each.slice(2,)
-        // kebab case to camel case
-        key = toCamelCase(key)
-        namedArgs[key] = args[index+1]
-    }
+    ...Object.fromEntries(Object.entries(parse(args)).map(
+        // change kebab-case to camel case
+        ([key, value])=>[toCamelCase(key), value],
+    )),
 }
 
 // 
@@ -55,7 +58,7 @@ try {
 
 async function publish(namedArgs) {
     // 
-    // handle args (could use improving)
+    // generate identity if needed
     // 
     const jsonDataToPublish = await FileSystem.read(namedArgs.entryPath)
     let idenities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
@@ -73,25 +76,52 @@ async function publish(namedArgs) {
             console.log(`Feel free to re-run this when the identity issue is worked out`)
             throw UserPickedExit()
         } else {
-            await createIdentity(namedArgs)
+            await IdentityManager.createIdentity(namedArgs)
         }
         // reload the file, now that an identity has been created
         idenities = await readIdentityFile(namedArgs.advancedIdentitiesFilepath)
     }
     
+    // 
+    // select identity
+    // 
+    var selectedidentity
+    const identityNames = Object.keys(idenities)
+    // if mentioned an identity, but it
+    if (namedArgs.identity && !identityNames.includes(namedArgs.identity)) {
+        console.log(`I didn't see ${namedArgs.identity} as one of the options.`)
+        if (identityNames.length == 1) {
+            if (await Console.askFor.yesNo(`${identityNames[0]} is the only identity I see\nShould I use that one?`)) {
+                selectedidentity = identityNames[0]
+            } else {
+                console.log(`Okay. This command does need an identity so please create one and then rerun this command`)
+                throw UserPickedExit()
+            }
+        } else {
+            console.log(`These are the options I saw:${identityNames.map((each,index)=>`\n${index+1}. ${each}`)}`)
+            while (!selectedidentity) {
+                const name = await Console.askFor.line(`please enter one of those names or cancel`)
+                if (identityNames.includes(searchElement)) {
+                    selectedidentity = name
+                    break
+                }
+            }
+        }
+    }
     if (namedArgs.identity) {
-        const signatureKey = idenities[namedArgs.identity]?.mainKeyset?.signatureKey
-        const verificationKey = idenities[namedArgs.identity]?.mainKeyset?.verificationKey
+        if (!idenities[namedArgs.identity]) {
+        }
+        signatureKey = idenities[namedArgs.identity]?.mainKeyset?.signatureKey
+        verificationKey = idenities[namedArgs.identity]?.mainKeyset?.verificationKey
     }
-    if (idenities[namedArgs.identity])
 
-    Object.keys(idenities).identity == 0
+    // Object.keys(idenities).identity == 0
     
-    if (!namedArgs.identity && ) {
-        console.log(`I see you didn't include an --identity argument`)
-        await Console.askFor.line(``)
-        throw Error(`Please include a '--identity WHICH_IDENITY' argument. If you don't have an identity, create one with the 'publisher createIdentity' command`)
-    }
+    // if (!namedArgs.identity && ) {
+    //     console.log(`I see you didn't include an --identity argument`)
+    //     await Console.askFor.line(``)
+    //     throw Error(`Please include a '--identity WHICH_identity' argument. If you don't have an identity, create one with the 'publisher createIdentity' command`)
+    // }
     
     // TODO: add a lot more structure checks/warnings/errors
 

@@ -13,7 +13,7 @@ import { commonInterface } from "./common_interface.js"
  *         async FileSystem.home
  *         async Console.askFor.line(message)
  *         async Console.askFor.yesNo(message)
- *         async Custom.getDefaultIdenityName()
+ *         async Custom.getDefaultidentityName()
  *         async Custom.userAborted()
  *         Console.log(...args)
  *         Console.error(...args)
@@ -68,7 +68,7 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
         let identityName = namedArgs.identity
         if (!identityName) {
             createIdentity: while (1) {
-                let defaultName = await Custom.getDefaultIdenityName()
+                let defaultName = await Custom.getDefaultidentityName()
                 identityName = await Console.askFor.line(`What should I call the new identity?`) || defaultName
                 const isInvalidReason = this.reasonForInvalidName(identityName)
                 if (isInvalidReason) {
