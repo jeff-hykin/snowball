@@ -27,7 +27,12 @@ function tokenizeChunks(text) {
 }
 
 function tokenizeChunksAndWords(text) {
-    return tokenizeChunks(text).concat(tokenizeWords(text))
+    return tokenizeWords(text).concat(tokenizeChunks(text))
+}
+
+const specialChar = "🔣"
+function tokenizeChunksAndSpecialSplits(text) {
+    return text.split(specialChar).concat(tokenizeChunksAndWords(text))
 }
 
 class Bm25Index {
@@ -209,30 +214,32 @@ class Bm25Index {
 
 class Index {
     constructor(path) {
-        this.packages = new Map()
-        this.directPackageIndex      = new Bm25Index({ tokenizer: tokenizeChunksAndWords })
-        this.packageDescriptionIndex = new Bm25Index({ tokenizer: tokenizeChunksAndWords })
-        this.packageReadmeIndex      = new Bm25Index({ tokenizer: tokenizeWords })
+        this.tools = new Map()
+        this.directToolIndex           = new Bm25Index({ tokenizer: tokenizeChunksAndWords })
+        this.toolBlurbIndex            = new Bm25Index({ tokenizer: tokenizeChunksAndWords })
+        this.toolKeywordIndex          = new Bm25Index({ tokenizer: tokenizeChunksAndSpecialSplits })
+        this.toolDescriptionIndex      = new Bm25Index({ tokenizer: tokenizeWords })
         this.path = path
         if (path) {
             // FIXME: add loading from file
         }
     }
 
-    async updateIdf() {
-        this.directPackageIndex.updateIdf()
-        this.packageDescriptionIndex.updateIdf()
-        this.packageReadmeIndex.updateIdf()
+    updateIdf() {
+        this.directToolIndex.updateIdf()
+        this.toolKeywordIndex.updateIdf()
+        this.toolBlurbIndex.updateIdf()
+        this.toolDescriptionIndex.updateIdf()
     }
 
     async query(string, numberOfResults) {
         const wordsAndChunks = tokenizeChunksAndWords(string)
-        console.debug(`wordsAndChunks is:`,wordsAndChunks)
-        const directPackageIndexResults      = this.directPackageIndex.search(string, numberOfResults).map(     each=>({...each,  directPackageScore:      each.score}))
-        const packageDescriptionIndexResults = this.packageDescriptionIndex.search(string, numberOfResults).map(each=>({...each,  packageDescriptionScore: each.score}))
-        const packageReadmeIndexResults      = this.packageReadmeIndex.search(string, numberOfResults).map(     each=>({...each,  packageReadmeScore:      each.score}))
+        const directToolIndexResults      = this.directToolIndex.search(string, numberOfResults).map(       each=>({...each,  toolNameScore:        each.score}))
+        const toolKeywordIndexResults     = this.toolKeywordIndex.search(string, numberOfResults).map(      each=>({...each,  toolKeywordScore:     each.score}))
+        const toolBlurbIndexResults       = this.toolBlurbIndex.search(string, numberOfResults).map(        each=>({...each,  toolBlurbScore:       each.score}))
+        const toolDescriptionIndexResults = this.toolDescriptionIndex.search(string, numberOfResults).map(  each=>({...each,  toolDescriptionScore: each.score}))
         
-        const allResults = directPackageIndexResults.concat(packageDescriptionIndexResults, packageReadmeIndexResults)
+        const allResults = directToolIndexResults.concat(toolKeywordIndexResults, toolBlurbIndexResults, toolDescriptionIndexResults)
 
         const resultsById = {}
         for (let each of allResults) {
@@ -240,16 +247,17 @@ class Index {
         }
         
         const unsortedCombinedResults = Object.values(resultsById)
-        unsortedCombinedResults.sort(maxVersionSorter(each=>[ each.directPackageScore, each.packageDescriptionScore, each.packageReadmeScore ]))
+        unsortedCombinedResults.sort(maxVersionSorter(each=>[ each.toolNameScore, each.toolKeywordScore, each.toolBlurbScore, each.toolDescriptionScore ]))
         
         const outputList = []
         for (let each of unsortedCombinedResults) {
             outputList.push({
-                package: this.packages.get(each.id), // TODO: consider making this read from disk so that not all packages remain in memory)
+                package: this.tools.get(each.id), // TODO: consider making this read from disk so that not all packages remain in memory)
                 score: [
-                    each.directPackageScore || 0,
-                    each.packageDescriptionScore || 0,
-                    each.packageReadmeScore || 0,
+                    each.toolNameScore || 0,
+                    each.toolKeywordScore || 0,
+                    each.toolBlurbScore || 0,
+                    each.toolDescriptionScore || 0,
                 ],
             })
         }
@@ -258,56 +266,64 @@ class Index {
     
     async addEntriesToIndex(entries) {
         for (const each of entries) {
+            // {
+            //     toolName: 
+            //     entityUuid: 
+            //     blurb:
+            //     keywords:
+            //     description:
+            // }
             if (
-                typeof each.name == 'string' && each.name &&
-                typeof each.blurb == 'string' && each.blurb
+                typeof each.toolName == 'string' && each.toolName &&
+                typeof each.entityUuid == 'string' && each.entityUuid
             ) {
-                const key = JSON.stringify({name: each.name, blurb: each.blurb})
+                const key = JSON.stringify({name: each.toolName, entityUuid: each.entityUuid})
                 const id = await sha256(key)
-                // figure out if its part of an existing name+blurb
+                // figure out if its part of an existing name+entityUuid
                 // if yes, then dont give any pre-existing words any weight
-                if (this.packages.has(id)) {
+                if (this.tools.has(id)) {
                     // only add new words
                     // TODO: lowish priority
                 } else {
-                    this.packages.set(id, each)
+                    this.tools.set(id, each)
                     // 
                     // update indicies
                     // 
-                    this.directPackageIndex.addDocument({
+                    this.directToolIndex.addDocument({
                         id,
-                        body: each.name,
+                        body: each.toolName,
                         shouldUpdateIdf: false,
                     })
-                    this.packageDescriptionIndex.addDocument({
+
+                    if (each.keywords instanceof Array) {
+                        const keywordsString = each.keywords.filter(each=>typeof each == 'string').join(specialChar)
+                        this.toolKeywordIndex.addDocument({
+                            id,
+                            body: keywordsString,
+                            shouldUpdateIdf: false,
+                        })
+                    }
+
+                    this.toolBlurbIndex.addDocument({
                         id,
                         body: each.blurb,
                         shouldUpdateIdf: false,
                     })
+
                     
-                    let fullReadmeDocument = ""
-                    // add keywords if given
-                    if (each.keywords instanceof Array) {
-                        fullReadmeDocument += each.keywords.join(" ")
-                    }
-                    
-                    if (typeof each.readmeUrl == 'string' && each.readmeUrl) {
-                        fullReadmeDocument += getInnerTextOfHtml(await curl(each.readmeUrl))
-                    }
-                    
-                    if (fullReadmeDocument) {
-                        this.packageReadmeIndex.addDocument({
+                    if (each.description) {
+                        this.toolDescriptionIndex.addDocument({
                             id,
-                            body: fullReadmeDocument,
+                            body: each.description,
                             shouldUpdateIdf: false,
                         })
                     }
                 }
+            } else {
+                console.warn(`${each} didn't have a string for toolName and/or entityUuid`)
             }
         }
-        this.directPackageIndex.updateIdf()
-        this.packageDescriptionIndex.updateIdf()
-        this.packageReadmeIndex.updateIdf()
+        this.updateIdf()
     }
 
     async removeEntriesFromIndex(entries) {
@@ -316,6 +332,7 @@ class Index {
 
     async save(path) {
         // FIXME: add saving to file (will not work this way)
+        // probably need to save to and load from mutliple files to be practical
         return FileSystem.write({
             path: this.path,
             data: JSON.stringify(this),
@@ -327,15 +344,19 @@ async function smokeTest() {
     const index = new Index("smoke_test.ignore.json")
     await index.addEntriesToIndex([
         {
-            name: "howdy",
+            toolName: "howdy",
+            entityUuid: "rlkjalskjf049935",
             blurb: "a demo package used for smoke testing the bm25 based index",
         },
         {
-            name: "python3",
-            blurb: "the latest python",
+            toolName: "python3",
+            entityUuid: "rlkjalskjf049935",
+            keywords: ["python", "python3", "pip"],
+            blurb: "a demo package used for smoke testing the bm25 based index",
         },
     ])
     const results = await index.query("python", 10)
     console.debug(`index is:`,index)
     console.debug(`results is:`,results)
 }
+smokeTest()
