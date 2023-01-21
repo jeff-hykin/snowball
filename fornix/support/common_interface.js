@@ -13,7 +13,7 @@ if (globalThis.Deno) {
             async userAborted() {
                 throw UserPickedCancel()
             },
-            async getDefaultidentityName() {
+            async getDefaultIdentityName() {
                 try {
                     return (await run`whoami ${Stdout(returnAsString)}`).replace(/\n/,"").trim() 
                 } catch (error) {}

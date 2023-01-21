@@ -79,30 +79,51 @@ async function publish(namedArgs) {
             await IdentityManager.createIdentity(namedArgs)
         }
         // reload the file, now that an identity has been created
-        idenities = await readIdentityFile(namedArgs.advancedIdentitiesFilepath)
+        idenities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
     }
     
     // 
     // select identity
     // 
-    var selectedidentity
+    var selectedIdentity
     const identityNames = Object.keys(idenities)
-    // if mentioned an identity, but it
-    if (namedArgs.identity && !identityNames.includes(namedArgs.identity)) {
-        console.log(`I didn't see ${namedArgs.identity} as one of the options.`)
-        if (identityNames.length == 1) {
-            if (await Console.askFor.yesNo(`${identityNames[0]} is the only identity I see\nShould I use that one?`)) {
-                selectedidentity = identityNames[0]
-            } else {
-                console.log(`Okay. This command does need an identity so please create one and then rerun this command`)
-                throw UserPickedExit()
-            }
+    // if mentioned an identity
+    if (namedArgs.identity) {
+        // if it exists, move on
+        if (identityNames.includes(namedArgs.identity)) {
+            selectedIdentity = namedArgs.identity
+        // if it doesnt, get one that exists
         } else {
-            console.log(`These are the options I saw:${identityNames.map((each,index)=>`\n${index+1}. ${each}`)}`)
-            while (!selectedidentity) {
+            console.log(`I didn't see ${namedArgs.identity} as one of the options.`)
+            if (identityNames.length == 1) {
+                if (await Console.askFor.yesNo(`${identityNames[0]} is the only identity I see\nShould I use that one?`)) {
+                    selectedIdentity = identityNames[0]
+                } else {
+                    console.log(`Okay. This command does need an identity so please create one and then rerun this command`)
+                    throw UserPickedExit()
+                }
+            } else {
+                console.log(`These are the options I saw:${identityNames.map((each,index)=>`\n${index+1}. ${each}`)}`)
+                while (!selectedIdentity) {
+                    const name = await Console.askFor.line(`please enter one of those names or cancel`)
+                    if (identityNames.includes(searchElement)) {
+                        selectedIdentity = name
+                        break
+                    }
+                }
+            }
+        }
+    // if did not mention an identity
+    } else {
+        // if there's only one identity, just use it
+        if (identityNames.length == 1) {
+            selectedIdentity = identityNames[0]
+        } else {
+            console.log(`Please pick an identity to publish with:${identityNames.map((each,index)=>`\n${index+1}. ${each}`)}`)
+            while (!selectedIdentity) {
                 const name = await Console.askFor.line(`please enter one of those names or cancel`)
                 if (identityNames.includes(searchElement)) {
-                    selectedidentity = name
+                    selectedIdentity = name
                     break
                 }
             }

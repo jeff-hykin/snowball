@@ -1369,7 +1369,7 @@ export const maxVersionSorter = (createVersionList)=> {
     return (a,b)=>compareLists(createVersionList(a), createVersionList(b))
 }
 
-export async function readidentityFile(identitiesPath) {
+export async function readIdentityFile(identitiesPath) {
     const fileInfo = await FileSystem.info(identitiesPath)
     let idenities
     if (!fileInfo.exists) {
