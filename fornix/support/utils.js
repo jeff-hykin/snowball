@@ -1371,22 +1371,22 @@ export const maxVersionSorter = (createVersionList)=> {
 
 export async function readIdentityFile(identitiesPath) {
     const fileInfo = await FileSystem.info(identitiesPath)
-    let idenities
+    let identities
     if (!fileInfo.exists) {
-        idenities = {}
+        identities = {}
     } else if (fileInfo.exists) {
         let contents
         try {
             contents = await FileSystem.read(identitiesPath)
             if (!contents) {
-                idenities = {}
+                identities = {}
             } else {
-                idenities = JSON.parse(contents)
+                identities = JSON.parse(contents)
             }
         } catch (error) {
         }
-        if (!(idenities instanceof Object)) {
-            console.error(`It appears the idenities file: ${identitiesPath} is corrupted (not a JSON object)\n\nNOTE: this file might contain important information so you may want to salvage it.`)
+        if (!(identities instanceof Object)) {
+            console.error(`It appears the identities file: ${identitiesPath} is corrupted (not a JSON object)\n\nNOTE: this file might contain important information so you may want to salvage it.`)
             console.log(`Here are the current contents (indented for visual help):\n${indent(contents)}`)
             while (1) {
                 let shouldDelete = false
@@ -1401,5 +1401,5 @@ export async function readIdentityFile(identitiesPath) {
             }
         }
     }
-    return idenities
+    return identities
 }

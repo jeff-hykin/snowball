@@ -7,14 +7,21 @@ import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from 
 import { IdentityManager } from "../support/identity_manager.js"
 import { parse } from "https://deno.land/std@0.173.0/flags/mod.ts"
 
-import {
-  Checkbox,
-  Confirm,
-  Input,
-  Number,
-  prompt,
-} from "https://deno.land/x/cliffy@v0.25.7/prompt/mod.ts"
+const serverTarget = "localhost:3000" // TODO
+const contactSever = ({route, data})=>{
+    return fetch(`${serverTarget}/${route}`, 
+        {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json, text/plain, */*',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        }
+    ).then(res => res.json())
+}
 
+class UserPickedExit extends Error {}
 
 // overview
     // every publication needs a package name and an identity
@@ -61,8 +68,174 @@ async function publish(namedArgs) {
     // generate identity if needed
     // 
     const jsonDataToPublish = await FileSystem.read(namedArgs.entryPath)
-    let idenities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
-    const hasNoIdentites = Object.keys(idenities).length == 0
+    const { signatureKey, verificationKey, entityUuid, overthrowKeysets } = getIdentityData(namedArgs)
+    const overthrowKeys = overthrowKeysets.map(each=>each.verificationKey)
+
+    // 
+    // step1 check if identity exists
+    // 
+    var { value: entityExists } = await contactSever({route: "entityExists", data: { entityUuid }})
+    if (!entityExists) {
+        const action = "createEntity"
+        const actionData = {
+            entityUuid,
+            normalKeys: {
+                [verificationKey]: {
+                    hasAllPermissions: true,
+                },
+            },
+            overthrowKeys: overthrowKeys,
+            humanReadableName: null,
+            email: null,
+        }
+        const actionSignature = await Encryption.sign({ text: JSON.stringify(actionData), privateKey: signatureKey })
+         
+        var { error, value: success } = await contactSever({
+            route: [action],
+            data: {
+                identification: {
+                    publicVerificationKey: verificationKey,
+                    entityUuid,
+                    actionSignatures: {
+                        [action]: actionSignature,
+                    }
+                },
+                [action]: actionData
+            }
+        })
+        if (error) {
+            throw error
+        } else {
+            console.log("Success!")
+        }
+    }
+
+    // 
+    // step2 handle any update tool info
+    //
+    // TODO: validate the structure of jsonDataToPublish
+    if (jsonDataToPublish.toolInfo) {
+        const action = "updateToolInfo"
+        const actionData = {
+            // FIXME: restrict the tool name
+            toolName: jsonDataToPublish.toolInfo.toolName,
+            data: {
+                blurb: "",
+                keywords: [],
+                maintainers: [],
+                description: null,
+                ...jsonDataToPublish.toolInfo.data,
+                links: {
+                    homepage: null,
+                    icon: null,
+                    iframeSrc: null,
+                    ...jsonDataToPublish.toolInfo.data?.links,
+                },
+                // FIXME: validate the adjectives, camel case
+                adjectives: {
+                    ...jsonDataToPublish.toolInfo.data?.adjectives,
+                },
+            },
+        }
+        const actionSignature = await Encryption.sign({ text: JSON.stringify(actionData), privateKey: signatureKey })
+         
+        var { value } = await contactSever({
+            route: [action],
+            data: {
+                identification: {
+                    publicVerificationKey: verificationKey,
+                    entityUuid,
+                    actionSignatures: {
+                        [action]: actionSignature,
+                    }
+                },
+                [action]: actionData,
+            }
+        })
+    }
+    
+    // 
+    // step3 handle new release
+    //
+    // TODO: validate the structure of jsonDataToPublish
+    if (jsonDataToPublish.currentRelease) {
+        const action = "newReleaseInfo"
+        const sourceHashSignature = await Encryption.sign({ text: jsonDataToPublish.currentRelease.recursiveSha256SourceHash, privateKey: signatureKey })
+        const actionData = {
+            // FIXME: restrict the tool name
+            toolName: jsonDataToPublish.currentRelease.toolName,
+            data: {
+                // TODO: make a helper for performing a recursiveSha256SourceHash
+                // FIXME: validate that the source hash exists
+                recursiveSha256SourceHash: jsonDataToPublish.currentRelease.recursiveSha256SourceHash,
+                sourceHashSignature: sourceHashSignature,
+                numericVersion: jsonDataToPublish.currentRelease.numericVersion, // FIXME: validate list of ints
+                versionName: jsonDataToPublish.currentRelease.versionName, // optional
+                adjectives: {
+                    // FIXME: limit to predefined things or "custom."
+                    ...jsonDataToPublish.currentRelease.adjectives,
+                },
+                takesAndGives: [
+                    // FIXME: force the takingAnyOf:[] and gives:
+                    ...jsonDataToPublish.currentRelease.takesAndGives,
+                ],
+                possiblyGives: jsonDataToPublish.currentRelease.takesAndGives.reduce((a, b)=>{...a?.gives, ...b?.gives}),
+                sources: [
+                    // FIXME: validate the structure
+                    ...jsonDataToPublish.currentRelease.sources,
+                    // {
+                    //     "url": "https://github.com/NixOS/nixpkgs/archive/e696cfa9eae0d973126399f90d2e1fd87b980ced.zip", # when URL is downloaded
+                    //     "format": {
+                    //         commonName: "zip",
+                    //         ipfsUrlOfSpecification: "QmWJ8m5QRG3SZqioiDy59JUXhzsQp7ZKQpu4Vcud4RLebK",
+                    //     },
+                    //     "internalTargets": {
+                    //         "nixRootFolder": ".",
+                    //         "nixAttributePath": [],
+                    //     },
+                    //     "customInfo": {
+                    //         "date": "2021-02-24",
+                    //         "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
+                    //     },
+                    // },
+                    // {
+                    //     "url": "https://github.com/NixOS/nixpkgs.git",
+                    //     "format": "git",
+                    //     "internalTargets": {
+                    //         "gitCommit": "e696cfa9eae0d973126399f90d2e1fd87b980ced",
+                    //         "nixRootFolder": ".",
+                    //         "nixAttributePath": [],
+                    //     },
+                    //     "customInfo": {
+                    //         "date": "2021-02-24",
+                    //         "position": "/nix/store/hqc8hlzsl1qyzdyam91kvj1ww22yw538-6c36c4ca061f0c85eed3c96c0b3ecc7901f57bb3.tar.gz/pkgs/development/interpreters/python/cpython/2.7/default.nix:291",
+                    //     },
+                    // }
+                ],
+            },
+        }
+        const actionSignature = await Encryption.sign({ text: JSON.stringify(actionData), privateKey: signatureKey })
+         
+        var { value } = await contactSever({
+            route: [action],
+            data: {
+                identification: {
+                    publicVerificationKey: verificationKey,
+                    entityUuid,
+                    actionSignatures: {
+                        [action]: actionSignature,
+                    }
+                },
+                [action]: actionData,
+            }
+        })
+        
+    }
+}
+
+async function getIdentityData(namedArgs) {
+    let identities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
+    const hasNoIdentites = Object.keys(identities).length == 0
     if (hasNoIdentites) {
         console.log("")
         console.log("")
@@ -79,14 +252,14 @@ async function publish(namedArgs) {
             await IdentityManager.createIdentity(namedArgs)
         }
         // reload the file, now that an identity has been created
-        idenities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
+        identities = await IdentityManager.loadIdentities(namedArgs.advancedIdentitiesFilepath)
     }
     
     // 
     // select identity
     // 
     var selectedIdentity
-    const identityNames = Object.keys(idenities)
+    const identityNames = Object.keys(identities)
     // if mentioned an identity
     if (namedArgs.identity) {
         // if it exists, move on
@@ -120,6 +293,7 @@ async function publish(namedArgs) {
             selectedIdentity = identityNames[0]
         } else {
             console.log(`Please pick an identity to publish with:${identityNames.map((each,index)=>`\n${index+1}. ${each}`)}`)
+            console.log(`Note: you can skip being asked this if you use the --identity=IDENTITY_NAME argument`)
             while (!selectedIdentity) {
                 const name = await Console.askFor.line(`please enter one of those names or cancel`)
                 if (identityNames.includes(searchElement)) {
@@ -129,47 +303,38 @@ async function publish(namedArgs) {
             }
         }
     }
-    if (namedArgs.identity) {
-        if (!idenities[namedArgs.identity]) {
-        }
-        signatureKey = idenities[namedArgs.identity]?.mainKeyset?.signatureKey
-        verificationKey = idenities[namedArgs.identity]?.mainKeyset?.verificationKey
+    
+    const identity = identities[selectedIdentity]
+    let signatureKey     = identity?.mainKeyset?.signatureKey
+    let verificationKey  = identity?.mainKeyset?.verificationKey
+    let entityUuid       = identity?.entityUuid
+    let overthrowKeysets = identity?.overthrowKeysets
+
+    if (!signatureKey || !verificationKey || !entityUuid || !(overthrowKeysets instanceof Array) || overthrowKeysets.length < 2) {
+        throw Error(`\n\n\nSo I loaded the ${selectedIdentity} identity from ${namedArgs.advancedIdentitiesFilepath}\nHowever, when I tried to get some of the necessary values I wasn't able to.\nI expected something like the following:
+            ${JSON.stringify(selectedIdentity)}: {
+                "entityUuid": "aldkjflkasdjflajsdlfjasdlkjfaldksjf",
+                "mainKeyset": {
+                    "signatureKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf",
+                    "verificationKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf"
+                },
+                "overthrowKeysets": [
+                    {
+                        "encryptionKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf",
+                        "verificationKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf"
+                    },
+                    {
+                        "encryptionKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf",
+                        "verificationKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf"
+                    },
+                    {
+                        "encryptionKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf",
+                        "verificationKey": "aldkjflkasdjflajsdlfjasdlkjfaldksjf"
+                    }
+                ]
+            }\nWhat I got instead was something like: ${indent({ string: JSON.stringify(identity, 0, 4), indent: "                " })}\n\nPlease fix the file, or use this tool to generate a new identity
+        `)
     }
 
-    // Object.keys(idenities).identity == 0
-    
-    // if (!namedArgs.identity && ) {
-    //     console.log(`I see you didn't include an --identity argument`)
-    //     await Console.askFor.line(``)
-    //     throw Error(`Please include a '--identity WHICH_identity' argument. If you don't have an identity, create one with the 'publisher createIdentity' command`)
-    // }
-    
-    // TODO: add a lot more structure checks/warnings/errors
-
-    // 
-    // extract info
-    // 
-    const signatureKey = idenities[namedArgs.identity].mainKeyset.signatureKey
-    const verificationKey = idenities[namedArgs.identity].mainKeyset.verificationKey
-    const overthrowKeys = overthrowKeysets.map(each=>each.verificationKey)
-    const sourceHash = jsonDataToPublish?.instance?.sourceHash
-
-    // 
-    // modify object being published
-    // 
-    jsonDataToPublish.flavor.advertiser.verificationKey = verificationKey
-    jsonDataToPublish.flavor.advertiser.overthrowKeys = overthrowKeys
-    jsonDataToPublish.instance = {...jsonDataToPublish.instance}
-    jsonDataToPublish.instance.sourceHashSignature = null
-
-    // the order of keys matters when converting to a JSON string
-    jsonDataToPublish = deepSortObject(jsonDataToPublish)
-    
-    if (sourceHash) {
-        jsonDataToPublish.instance.sourceHashSignature = await Encryption.sign({ text: JSON.stringify(jsonDataToPublish.instance), privateKey: signatureKey })
-    }
-    jsonDataToPublish.instance.sourceHashSignature = await Encryption.sign({ text: JSON.stringify(jsonDataToPublish), privateKey: signatureKey })
-    
-    // FIXME: post request using jsonDataToPublish
-    // TODO: should ask for target URL
+    return { signatureKey, verificationKey, entityUuid, overthrowKeysets }
 }

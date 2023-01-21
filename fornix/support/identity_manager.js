@@ -47,11 +47,11 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
         // name is valid
         return null
     },
-    defaultPath: `${FileSystem.home}/.idenities.json`,
+    defaultPath: `${FileSystem.home}/.identities.json`,
     
     async createIdentity(namedArgs) {
         namedArgs = {
-            advancedIdentitiesFilepath: `${await FileSystem.home}/.idenities.json`,
+            advancedIdentitiesFilepath: `${await FileSystem.home}/.identities.json`,
             identity: null,
             ...namedArgs,
         }
@@ -60,7 +60,7 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
         // load identity file
         // 
         const identitiesPath = namedArgs.advancedIdentitiesFilepath
-        const idenities = await this.loadIdentities(namedArgs.advancedIdentitiesFilepath)
+        const identities = await this.loadIdentities(namedArgs.advancedIdentitiesFilepath)
         
         // 
         // get identity name
@@ -78,7 +78,7 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
                         Console.error(`    ${each.message}`)
                     }
                     continue createIdentity
-                } else if (idenities[identityName]) {
+                } else if (identities[identityName]) {
                     Console.log(``)
                     Console.warn("It looks like there's already an identity with that name")
                     const shouldDelete = await Console.askFor.yesNo(`Should I DELETE that identity and overwrite it with new keys? (irreversable)`)
@@ -90,6 +90,8 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
                 break
             }
         }
+
+
 
         // 
         // make keys
@@ -104,7 +106,8 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
         // 
         // save keys
         // 
-        idenities[identityName] = {
+        identities[identityName] = {
+            entityUuid: sha256(keySets[0]),
             mainKeyset: keySets[0],
             overthrowKeysets: keySets.slice(1).map(
                 each=>({
@@ -115,7 +118,7 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
         }
         
         await FileSystem.write({
-            data: JSON.stringify(idenities,0,4),
+            data: JSON.stringify(identities,0,4),
             path: identitiesPath,
         })
         Console.log(`Main keys saved under "${identityName}" in ${identitiesPath}\n\n`)
@@ -132,22 +135,22 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
     
     async loadIdentities(identitiesPath) {
         const fileInfo = await FileSystem.info(identitiesPath)
-        let idenities
+        let identities
         if (!fileInfo.exists) {
-            idenities = {}
+            identities = {}
         } else if (fileInfo.exists) {
             let contents
             try {
                 contents = await FileSystem.read(identitiesPath)
                 if (!contents) {
-                    idenities = {}
+                    identities = {}
                 } else {
-                    idenities = JSON.parse(contents)
+                    identities = JSON.parse(contents)
                 }
             } catch (error) {
             }
-            if (!(idenities instanceof Object)) {
-                Console.error(`It appears the idenities file: ${identitiesPath} is corrupted (not a JSON object)\n\nNOTE: this file might contain important information so you may want to salvage it.`)
+            if (!(identities instanceof Object)) {
+                Console.error(`It appears the identities file: ${identitiesPath} is corrupted (not a JSON object)\n\nNOTE: this file might contain important information so you may want to salvage it.`)
                 Console.log(`Here are the current contents (indented for visual help):\n${indent(contents)}`)
                 while (1) {
                     let shouldDelete = false
@@ -162,7 +165,7 @@ const connectInterface = ({ FileSystem, Console, Custom })=>({
                 }
             }
         }
-        return idenities
+        return identities
     },
 })
 
