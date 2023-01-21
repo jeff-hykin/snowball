@@ -8,7 +8,8 @@ import { IdentityManager } from "../support/idenity_manager.js"
 
 
 // overview
-    // every package needs a package name and an identity
+    // every publication needs a package name and an identity
+    // the publisher
 
 // 
 // parse args

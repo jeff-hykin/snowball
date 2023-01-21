@@ -1,16 +1,11 @@
 db system:
     - submissions: just every publish as-is in a content-addressed folder and put in an unprocessed folder
-    - package folder: just package names and summary stats
-    - variants folder:
-        different description, same package name:
-            - name
-            - description
-            - click counts
-            - adjective frequency: use key path as a value, and set the key to be the hash of the value
-            - variant frequency
-            - license frequency
-            - source providers
-            - date range
-            - etc
-    - info folder: reference variant and package
-    - sources folder: reference to info and variant and package
+    - tool index:
+        tool name
+        entityUuid
+        tool keywords
+        tool blurb
+        tool description
+    - versions:
+        every tool name + allResults gets a file that contains adjectives and versioned information
+        once some tool-results are populated, then this file is loaded for adjective-refinement followed by listing of versions and sources
