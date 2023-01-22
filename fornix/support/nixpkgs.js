@@ -117,9 +117,8 @@ export async function getPackageInfo({hash, packageName}) {
     const path = `${cacheFolder}/${hash}.json`
     let output = await jsonRead(path)
     if (output == null) {
-        // pretend to be linux since it has the most wide support
-        // TODO: probably change this in the future
-        await run`nix-env -qa --json --arg system \"x86_64-linux\" --file ${`https://github.com/NixOS/nixpkgs/archive/${hash.trim()}.tar.gz`} ${Stdout(Overwrite(path))}`
+        await run`nix-env -qa --json --file ${`https://github.com/NixOS/nixpkgs/archive/${hash.trim()}.tar.gz`} ${Stdout(Overwrite(path))}`
+        // await run`nix-env -qa --json --arg system \"x86_64-linux\" --file ${`https://github.com/NixOS/nixpkgs/archive/${hash.trim()}.tar.gz`} ${Stdout(Overwrite(path))}`
         output = await jsonRead(path)
     }
     // if still null
