@@ -277,7 +277,7 @@ class Index {
                 typeof each.toolName == 'string' && each.toolName &&
                 typeof each.entityUuid == 'string' && each.entityUuid
             ) {
-                const key = JSON.stringify({name: each.toolName, entityUuid: each.entityUuid})
+                const key = JSON.stringify({toolName: each.toolName, entityUuid: each.entityUuid})
                 const id = await sha256(key)
                 // figure out if its part of an existing name+entityUuid
                 // if yes, then dont give any pre-existing words any weight
@@ -359,4 +359,3 @@ async function smokeTest() {
     console.debug(`index is:`,index)
     console.debug(`results is:`,results)
 }
-smokeTest()

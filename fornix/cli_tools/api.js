@@ -48,6 +48,8 @@ try {
         await IdentityManager.createIdentity(namedArgs)
     } else if (action == "publish") {
         await publish({ entryPath: args[0],  ...namedArgs})
+    } else if (action == 'overthrow') {
+        // FIXME
     } else if (action == 'unpublish') {
         // FIXME
     } else {
@@ -78,7 +80,6 @@ async function publish(namedArgs) {
     if (!entityExists) {
         const action = "createEntity"
         const actionData = {
-            entityUuid,
             normalKeys: {
                 [verificationKey]: {
                     hasAllPermissions: true,
@@ -95,7 +96,6 @@ async function publish(namedArgs) {
             data: {
                 identification: {
                     publicVerificationKey: verificationKey,
-                    entityUuid,
                     actionSignatures: {
                         [action]: actionSignature,
                     }
@@ -123,12 +123,12 @@ async function publish(namedArgs) {
                 blurb: "",
                 keywords: [],
                 maintainers: [],
-                description: null,
+                description: "",
                 ...jsonDataToPublish.toolInfo.data,
                 links: {
-                    homepage: null,
-                    icon: null,
-                    iframeSrc: null,
+                    homepage: "",
+                    icon: "",
+                    iframeSrc: "",
                     ...jsonDataToPublish.toolInfo.data?.links,
                 },
                 // FIXME: validate the adjectives, camel case

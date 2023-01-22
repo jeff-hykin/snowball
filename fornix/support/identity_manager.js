@@ -1,5 +1,5 @@
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.2/string.js"
-import * as Encryption from "https://deno.land/x/good@0.7.2/encryption.js"
+import * as Encryption from "https://deno.land/x/good@0.7.8/encryption.js"
 import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.2/value.js"
 import { commonInterface } from "./common_interface.js"
 
