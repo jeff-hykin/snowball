@@ -9,14 +9,14 @@ import { parse } from "https://deno.land/std@0.173.0/flags/mod.ts"
 
 const serverTarget = "localhost:3000" // TODO
 const contactSever = ({route, data})=>{
-    return fetch(`${serverTarget}/${route}`, 
+    return fetch(`${serverTarget}/publisher/${route}`, 
         {
             method: 'POST',
             headers: {
                 'Accept': 'application/json, text/plain, */*',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify({ args: [ data ]})
         }
     ).then(res => res.json())
 }

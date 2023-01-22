@@ -3,6 +3,7 @@ import { Console, clearStylesFrom, black, white, red, green, blue, yellow, cyan,
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.2/string.js"
 import { DOMParser, Element, } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts"
 import { createHash } from "https://deno.land/std@0.139.0/hash/mod.ts"
+import { deferred } from "https://deno.land/std@0.173.0/async/deferred.ts";
 
 export const tempFolder = `${FileSystem.thisFolder}/../cache.ignore/`
 await FileSystem.ensureIsFolder(tempFolder)
@@ -17,6 +18,10 @@ export async function sha256(message) {
 
 export async function hash(string) {
     return BigInt(await sha256(string, 'utf-8', 'hex'), 16) 
+}
+
+export function makeSafeFileName(string) {
+    return [...string].map((each,index)=>each.charCodeAt(0).toString(16).padStart(2,"0")).join("")
 }
 
 // all these strings look like length 1, all of them them should be length 1, but depending on the deno version, not all of them are length 1
@@ -1292,53 +1297,86 @@ function* binaryListOrder(aList) {
 }
 
 export const debounceFinish = ({cooldownTime=200}, func) => {
-    const previousOne = { endTime: 0, promise: null }
-    let listenerForCompletion = false
-    let running
-    const onCall = ()=>{
-        console.debug(`onCall`)
-        console.debug(`    running is:`,running)
-        const timeIsUp = previousOne.endTime+cooldownTime < (new Date()).getTime()
-        if (!running) {
-            console.debug(`    timeIsUp is:`,timeIsUp)
+    const calls = []
+    const cleanUpCalls = ()=>{
+        let count = 0
+        for (const each of calls) {
+            if (each.finishTime) {
+                count ++
+            }
         }
-        if (!(!running && timeIsUp)) {
-            console.debug(`    listenerForCompletion is:`,listenerForCompletion)
+        if (count>1) {
+            calls.splice(0,count-2)
         }
-        // can it be executed right now?
-        if (!running && timeIsUp) {
-            running = true
-            console.debug(`        func()`,)
-            previousOne.promise = func().then(value=>{
-                previousOne.endTime = (new Date()).getTime()
-                running = false
-                return value
-            })
-            listenerForCompletion = false
-        // does the next one need to be scheduled?
-        } else if (!listenerForCompletion) {
-            console.debug(`    scheduling`,)
-            listenerForCompletion = true
-            previousOne.promise.then(()=>{
-                // previousOne.endTime is guareenteed to be correct because the promise has been awaited
-                const targetTime = previousOne.endTime+cooldownTime
-                const remainingMiliseconds = targetTime - (new Date()).getTime()
-                if (remainingMiliseconds <= 0) {
-                    // we are able to execute now
-                    console.debug(`scheduled--onCall--instant`)
-                    onCall()
-                } else {
-                    // try again later
-                    setTimeout(()=>{
-                        listenerForCompletion = false // this is the listener, and it just finished
-                        console.debug(`scheduled--onCall--delayed`)
-                        onCall()
-                    }, remainingMiliseconds)
-                }
-            })
-        }
-        return previousOne.promise
     }
+
+    const freshStart = ()=>{
+        calls.length = 0
+
+        const thisCall = deferred()
+        // mark the finish time as soon as it happens
+        thisCall.then(()=>thisCall.finishTime = (new Date()).getTime());
+        thisCall.startTime = (new Date()).getTime()
+        calls.push(thisCall)
+        ;((async ()=>{
+            thisCall.resolve(await func())
+            cleanUpCalls()
+        })())
+        return thisCall
+    }
+    const onCall = ()=>{
+        // if subsequent call
+        if (calls.length > 0) {
+            const previousCall = calls.slice(-1)[0]
+            // dont start another one if the previous one hasn't even started
+            if (!previousCall.startTime) {
+                return previousCall
+            } else {
+                const now = (new Date()).getTime()
+                const executeAfter = previousCall.finishTime + cooldownTime
+                // nothing to wait for, execute immediately
+                if (executeAfter < now) {
+                    return freshStart()
+                // previous thing is finished, but we can't start yet
+                } else if (previousCall.finishTime) {
+                    // schedule a call
+                    const thisCall = deferred()
+                    // mark the finish time as soon as it happens
+                    thisCall.then(()=>thisCall.finishTime = (new Date()).getTime())
+                    // show that a call is on deck
+                    calls.push(thisCall)
+                    const delayNeeded = now - executeAfter
+                    ;((async ()=>{
+                        await new Promise(resolve=>setTimeout(resolve, delayNeeded))
+                        thisCall.startTime = (new Date()).getTime()
+                        thisCall.resolve(await func())
+                        cleanUpCalls()
+                    })())
+                    return thisCall
+                // previous thing has started but not finished
+                } else {
+                    // schedule a call
+                    const thisCall = deferred()
+                    // mark the finish time as soon as it happens
+                    thisCall.then(()=>thisCall.finishTime = (new Date()).getTime())
+                    // show that a call is on deck
+                    calls.push(thisCall)
+                    // once the previous call is finished, then start the countdown to execution
+                    previousCall.then(async ()=>{
+                        await new Promise(resolve=>setTimeout(resolve, cooldownTime))
+                        thisCall.startTime = (new Date()).getTime()
+                        thisCall.resolve(await func())
+                        cleanUpCalls()
+                    })
+                    return thisCall
+                }
+            }
+        // if first call
+        } else {
+            return freshStart()
+        }
+    }
+    onCall.calls = calls
     return onCall
 }
 

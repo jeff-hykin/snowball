@@ -4,25 +4,11 @@ import { allKeys, ownKeyDescriptions, allKeyDescriptions, } from "https://deno.l
 import * as Encryption from "https://deno.land/x/good@0.7.2/encryption.js"
 import { sha256, maxVersionSorter, stableStringify } from "../support/utils.js"
 import { Index } from "../support/index.js"
-import { load } from "../support/data_storage.js"
+import { createStorageObject } from "../support/data_storage.js"
 import { deepCopy, allKeyDescriptions, deepSortObject, shallowSortObject } from "https://deno.land/x/good@0.7.2/value.js"
 
-const { names, blurbs, flavors, sources, ids } = await load({ folder: `${FileSystem.thisFolder}/default_data.ignore/` })
+const dataPath = `${FileSystem.thisFolder}/default_data.ignore/`
 const index = new Index("smoke_test.ignore.json")
-await index.addEntriesToIndex([
-    {
-        name: "howdy",
-        description: "a demo package used for smoke testing the bm25 based index",
-    },
-    {
-        name: "python3",
-        description: "the latest python",
-    },
-    {
-        name: "ruby",
-        description: "A programming language by Matz",
-    },
-])
 
 serve(async (request, connectionInfo)=>{
     const location = request.url.replace(/.+?\/\//, "").replace(/.+?\//,"")
@@ -41,7 +27,9 @@ serve(async (request, connectionInfo)=>{
         // 
         // API/publish
         // 
-        if (location == 'publisher/publish/flavor') {
+        if (location == 'publisher/entityExists') {
+            const { entityUuid } = args[0]
+            if ()
             // FIXME: validate a flavor:
                 // mainIdentity: "example_identity",
                 // flavorSignature: "",
