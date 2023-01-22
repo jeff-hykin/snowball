@@ -283,13 +283,47 @@ serve(async (request, connectionInfo)=>{
                     },
                 ])
                 
-                // FIXME: document update
-                // FIXME: entity update (ensure tool exists on entity)
-                
         } else if (location == 'publisher/newReleaseInfo') {
+            // 
+            // check action signature
+            // 
+                const error = validateSignature("newReleaseInfo", args[0])
+                if (error instanceof Response) {
+                    return error
+                }
+            
+            
+            // 
+            // check owner of tool
+            // 
+                const { identification, newReleaseInfo } = args[0]
+                const error = validatePermission({ identification, action })
+                if (error instanceof Response) {
+                    return error
+                }
+                
+                const { toolName, data } = newReleaseInfo
+                const entityUuid = identification.entityUuid || hashJsonPrimitive(identification.publicVerificationKey)
+                let { blurb, description, keywords, maintainers, links, adjectives } = data
+                
+                // FIXME: restrict the tool name
+
+            // 
+            // get tool data
+            // 
+                const toolId = `${toolName}@${entityUuid}`
+                const toolData = {
+                    blurb: "",
+                    keywords: [],
+                    maintainers: [],
+                    description: null,
+                    links: {},
+                    adjectives: {},
+                    ...toolStorage.data[toolId],
+                }
         
-        
-        
+            // FIXME: finish coding this section
+                // FIXME: make sure the tool exists
         
         
         
