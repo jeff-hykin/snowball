@@ -21,8 +21,21 @@
 - add overthrow cli command
 - add create-entity, and maybe reword the whole identity/entity thing
 
-
-- create a federate function:
+- consider when two things (numpy, ffmpeg) need to share an upstream dependency (llvm), but when not given a default argument, they end up using different versions of nixpkgs, and then result in terrible errors.
+    ```
+    llvm11=snowball.get { url = "llvm11"; inputs={} });
+    llvm9=snowball.get { url = "llvm9"; inputs={} });
+    python2=snowball.get { url = "python2"; inputs={ llvm=llvm9;  } });
+    python3=snowball.get { url = "python3"; inputs={ llvm=llvm11; } });
+    blah=snowball.get {
+        url="blah";
+        inputs={
+            python=python3
+        }; 
+    }
+    ```
+- finish the `extract_to_repo.js`
+    - redefine the snowball format, allow static information such as whether it is outputing a function or a package
     - creates a new repo in a temp folder
     - grabs info about a package from current nixpkgs
     - uses position to get the associated file
@@ -31,9 +44,9 @@
         - create a tool.json trying to extract version, inputs, etc
         - create a default.nix that pulls from that nixpkgs
         - add the source code to the bottom of default.nix
-        - try to auto-detect inputs
+        - try to auto-detect inputs, put them as commented-out sections
         - make a commit in the new repo
-        - try to publish it to fornix
+        - try to publish it to fornix, but make a new entity each time so it can be transfered to someone later
 
 - create a nixpkgs nightly
     - somehow try updating each of the existing federated packages with new versions

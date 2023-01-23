@@ -127,6 +127,9 @@ for (const [hash, dateString] of Object.entries(commits)) {
 
 function generateSnowballString({ nixpkgsHash, attributePath, relativePath, date }) {
     return `{
+        meta = {
+            isPackage = true;
+        };
         # commit date: ${date}
         # probably can view at: https://github.com/NixOS/nixpkgs/blob/${nixpkgsHash}/${relativePath}
         inputs = {
