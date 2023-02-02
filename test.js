@@ -1,9 +1,11 @@
 import { parse } from "./fornix/support/nix_parser.bundle.js"
 var nixStuff = Deno.readTextFileSync("fornix/documentation/snowball_format.nix")
+var nixStuff = Deno.readTextFileSync("/Users/jeffhykin/repos/nix-ros-overlay/distros/rolling/velodyne-driver/default.nix")
+var nixStuff = Deno.readTextFileSync("/Users/jeffhykin/repos/nixpkgs/pkgs/stdenv/darwin/default.nix")
 
 
 function nodeList(node) {
-    return [ node, ...node.children.map(nodeList) ].flat(Infinity)
+    return [ node, ...(node.children||[]).map(nodeList) ].flat(Infinity)
 }
 
 var realParse = (string)=>{
@@ -38,7 +40,6 @@ var realParse = (string)=>{
             let prevChild = firstChild
             for (const eachSecondaryNode of childrenCopy) {
                 if (prevChild.endIndex != eachSecondaryNode.startIndex) {
-                    console.debug(`${prevChild.endIndex} != ${eachSecondaryNode.startIndex}`,)
                     newChildren.push({
                         typeId: -1,
                         type: "whitespace",
@@ -54,7 +55,6 @@ var realParse = (string)=>{
             // 
             // inject whitespace "nodes"
             // 
-            const addedWhitespace = newChildren.length != eachNode.children.length
             Object.defineProperties(eachNode, {
                 children: {
                     get() {
@@ -62,9 +62,6 @@ var realParse = (string)=>{
                     }
                 }
             })
-            if (addedWhitespace) {
-                console.debug(`eachNode.children is:`,eachNode.children)
-            }
         }
     }
     return tree
@@ -90,8 +87,32 @@ var nodeAsJsonObject = (node)=>{
     }
 }
 
-// var tree = parse(nixStuff)
-// console.log(JSON.stringify(nodeAsJsonObject(tree.rootNode),0,4))
+function nix2json(path) {
+    return nodeAsJsonObject(realParse(Deno.readTextFileSync(path)).rootNode)
+}
 
-var tree2 = realParse(nixStuff)
-console.log(JSON.stringify(nodeAsJsonObject(tree2.rootNode),0,4))
+function json2Nix(jsonTree) {
+    return nodeList(jsonTree).map(each=>each.text||"").join("")
+}
+
+
+function getInputs(path) {
+    const tree = realParse(Deno.readTextFileSync(path))
+    for (const each of tree.rootNode.children) {
+        if (each.type == "function_expression" && each.children.length) {
+            const parameterAreas = each.children.filter(each=>each.type == "formals")
+            if (parameterAreas.length > 0 && parameterAreas[0].children.length) {
+                const parameterNodes = parameterAreas[0].children
+                return parameterNodes.filter(
+                        eachParameterNode=>eachParameterNode.type == "formal"
+                    ).map(
+                        // expession = "lib ? (thing.call {} 'whatever')"
+                        // identifier = "lib"
+                        eachParameterExpression=>eachParameterExpression.children.filter(
+                            eachLiteral=>eachLiteral.type == "identifier"
+                        )[0].text
+                    )
+            }
+        }
+    }
+}
