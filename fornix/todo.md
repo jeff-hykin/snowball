@@ -3,6 +3,54 @@
 - DONE initial write of cli-publish
 - DONE figure out how a package will be used by nix: the online site is just a registry/tutorial. Installers don't need to know about it, but maybe later they can use it
 
+
+- snowballifying nixpkgs:
+    - every package needs:
+        - inputs
+        - constraints on any package-inputs
+        - a list of inputs that caused all tests to pass
+        - a system value that is fed-down to anything that needs system
+    - package discovery: recursively explore attributes (keep track of seen objects) and detect when something is a derivation (.type == "derivation")
+    - package conversion:
+        - in the worse case: create a nix function that returns an attribute set (which will be a derivation)
+            - do a hardcoded check on the existing derivation object for anything system related (__impureHostDeps, __darwinAllowLocalNetworking, __propagatedImpureHostDeps, stdenv, system, etc)
+            - add `__magic__.system` to the nix function input, and set the attribute of any purely system-related attributes
+            - for the remaining attributes, recursively explore them 2 levels deep.
+              This will touch anything in buildInputs, nativeBuildInputs, and the like.
+              For each:
+                - if the value is a derivation, then auto-generate a unique name for it, add it to the nix-function inputs
+                - if the value is a function, its going to have to be imported from the pinned nixpkgs url (this is a possible source of hidden dependencies, but there's not much that can be done about it since nix-tracing tools are too limited, and nix can't be statically anaylzed)
+                - if the value is primitive, add it as an input with a default value
+                - if the value is itself, then create a special `__magic__.self` argument
+                - if the value is a container (list or attr-set) that does not contain a function (recursively), treat it like a primitive
+                - if the value is a container (list or attr-set) that contains a funciton, then import the value from the nixpkgs url
+            - once all those inputs have been gathered, the input constraints can be created
+                - if the value is a package, then its given a flavor constraint, tries to generate version constraints, and tries to generate system constraints
+                - if the value is literal, then its given a nullable nix-type constraint (bool/string/attr-set) 
+                - if the value isn't either of those, then it still gets the nix-value constraint
+            - all the inputs are then put into the `testedInputs` list
+        - if there's a meta.position, and doing `callPackage` on that path results in the same derivation
+            - then copy the source code
+            - find any relative paths, and replace them with paths to `/nix/store`
+            - extract all the input names
+                - check the inputs against a hardcoded list of impure values, and common values like `lib`. Handle the input-constraints and test values for those manually
+                - otherwise, create many copies of the function in the source file, keep the same arguments as but have each copy return a different one of the arguments. Use callPackage on each of them to get the value of each argument
+                - given the argument values
+                    - generate the constraints:
+                        - if the value is a package, then give it a flavor constraint, try to generate version constraints, and try to generate system constraints
+                        - if the value is itself, skip it
+                        - otherwise it gets a nix-type constraint (bool/string/attr-set)
+                    - generate the testedInputs:
+                        - self values are ignored
+                        - if the value doesn't contain a function then place the literal value in the spot
+                        - if the value does contain a funciton, then use an expression that imports from nixpkgs to get it
+        
+        - FIXME: try to not use default-arguments for imported packages (auto-write every single input)
+                 check if there is a snowball version of the input, and if there is, then use that to find what the inputs are 
+                 then fill those inputs using the shared-dependency algorithm, adding each one as an input argument
+                 #TODO: think about how overriding will work under this scenario (if one thing needs to be isolated, but isn't)
+        
+            
 - test make create-identity function
 - test publish cli side
 - finish publish newReleaseInfo
