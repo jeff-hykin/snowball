@@ -137,8 +137,12 @@ function getInputs(path) {
 async function innerBundle(path, callStack=[]) {
     callStack = [...callStack] // local copy (dont mutate parent copy)
     callStack.push(path)
-
-    const tree = realParse(Deno.readTextFileSync(path))
+    
+    const string = await FileSystem.read(path)
+    if (!string) {
+        throw Error(`${FileSystem.normalize(path)} doesn't contain anything`)
+    }
+    const tree = realParse(string)
     const jsonableTree = nodeAsJsonObject(tree.rootNode)
     const allNodes = nodeList(jsonableTree)
     const promises = []
@@ -166,11 +170,22 @@ async function innerBundle(path, callStack=[]) {
                     const rawTarget = `${FileSystem.parentPath(path)}/${relativePath}`
                     const infoForTarget = await FileSystem.info(rawTarget)
                     let realTargetPath = rawTarget
+                    const replaceWithNull = (reason)=>{
+                        const importPlusWhitespacePlusPathLiteral = 3
+                        eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: `null /* ${reason}*/` })
+                    }
                     if (!infoForTarget.exists) {
-                        console.warn(`import doesn't exist: ${JSON.stringify(rawTarget)}, search for: ${relativePath}`)
+                        replaceWithNull(`doesnt exist: import ${FileSystem.normalize(rawTarget)}`)
+                        console.warn(`import doesn't exist: ${JSON.stringify(FileSystem.normalize(rawTarget))}, search for: ${relativePath}, in ${callStack.slice(-1)[0]}`)
                         continue // no replacement
                     } else if (infoForTarget.isFolder) {
                         realTargetPath = `${rawTarget}/default.nix`
+                        const infoForTarget = await FileSystem.info(realTargetPath)
+                        if (!infoForTarget.exists) {
+                            replaceWithNull(`doesnt exist: import ${FileSystem.normalize(realTargetPath)}`)
+                            console.warn(`import doesn't exist: ${JSON.stringify(FileSystem.normalize(rawTarget))}, search for: ${relativePath}, in ${callStack.slice(-1)[0]}`)
+                            continue // no replacement
+                        }
                     }
                     realTargetPath = FileSystem.normalize(realTargetPath)
                     
@@ -186,7 +201,7 @@ async function innerBundle(path, callStack=[]) {
                                 string: json2Nix(resultTree),
                                 by: eachNode.indent+"  ",
                             })
-                            const wrappedImport = `(\n${indentedImport}\n${eachNode.indent})`
+                            const wrappedImport = `(# ${JSON.stringify(realTargetPath)}\n${indentedImport}\n${eachNode.indent})`
                             const importPlusWhitespacePlusPathLiteral = 3
                             eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: wrappedImport })
                         })

@@ -1,0 +1,5 @@
+- after `let` should be indent increase and newline
+- `in` should decrease the indent decrease once for itself, but then always be followed with a newline
+- after the children of the `in`, there should be a decrease in indent
+- the start of an attribute-function should increase the indent
+- the end of the body of an attribute-function should decrease the indent
