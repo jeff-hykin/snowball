@@ -113,8 +113,11 @@ function json2Nix(jsonTree) {
     return nodeList(jsonTree).map(each=>each.text||"").join("")
 }
 
+// console.log(JSON.stringify( nodeAsJsonObject(realParse(" { lib}: 10").rootNode),0,4))
+
 function getInputs(path) {
     const tree = realParse(Deno.readTextFileSync(path))
+    let indent = ""
     for (const each of tree.rootNode.children) {
         if (each.type == "function_expression" && each.children.length) {
             const parameterAreas = each.children.filter(each=>each.type == "formals")
@@ -133,6 +136,67 @@ function getInputs(path) {
         }
     }
 }
+
+// const baseIndentSize = 2
+// async function format(path) {
+//     const string = await FileSystem.read(path)
+//     if (!string) {
+//         throw Error(`${FileSystem.normalize(path)} doesn't contain anything`)
+//     }
+//     const tree = realParse(string)
+//     const jsonableTree = nodeAsJsonObject(tree.rootNode)
+//     function innerFormat(node, runningIndentSize=0) {
+//         const indent = "\n"+(" ".repeat(runningIndentSize))
+//         // change the whitespace nodes
+//         if (node.type == "whitespace") {
+//             node.text = node.text.replace(/\n */g,indent)
+//             return node
+//         // check if indent should be changed
+//         } else if (node.type == "function_expression") {
+//             if (node.children[0].type == "formals") {
+//                 const parameterArea = node.children[0]
+//                 // 
+//                 // find {
+//                 // 
+//                 if (parameterArea.children && parameterArea.children.length) {
+//                     const isAttributeFunction = parameterArea.children[0].type == "{"
+//                     if (isAttributeFunction) {
+//                         // remove trailing whitespace
+//                         if (parameterArea.children[1]?.type == "whitespace") {
+//                             parameterArea.children.splice(1,1)
+//                         }
+//                         // add formatted whitespace
+//                         parameterArea.children.splice(1,0,{ type: "whitespace", text:indent })
+//                         parameterArea.children.push({ type: "whitespace", text:indent })
+//                         // format all the middle nodes
+//                         parameterArea.children.slice(2,-1).map(each=>innerFormat(each, runningIndentSize+baseIndentSize))
+//                     }
+//                     let newChildren = []
+//                     for (const each of node.children) {
+//                         newChildren.push(each)
+//                         if (each.text == ":") {
+//                             newChildren.push({ type: "whitespace", text: "\n" })
+//                         }
+//                     }
+//                     node.children = newChildren
+//                     console.debug(`node.children is:`,node.children)
+//                     node.children.slice(1).map(each=>innerFormat(each, runningIndentSize+baseIndentSize))
+//                 }
+//             }
+//             return node
+//         } else if (node.children && node.children.length) {
+//             node.children.map(each=>innerFormat(each, runningIndentSize)) 
+//             return node
+//         } else {
+//             return node
+//         }
+//     }
+//     const newJsonableTree = innerFormat(jsonableTree)
+//     return FileSystem.write({
+//         path: path,
+//         data: json2Nix(newJsonableTree),
+//     })
+// }
 
 async function innerBundle(path, callStack=[]) {
     callStack = [...callStack] // local copy (dont mutate parent copy)
@@ -223,3 +287,4 @@ async function bundle(path) {
 }
 
 await bundle("./test.nix")
+// await format("./test.nix")

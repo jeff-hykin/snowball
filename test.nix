@@ -1,1 +1,6 @@
-import ../nixpkgs-skeleton/flake.nix
+{
+}
+
+  :
+  
+  import ../nixpkgs-skeleton/flake.nix
