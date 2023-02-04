@@ -186,7 +186,7 @@ async function innerBundle(path, callStack=[]) {
                                 string: json2Nix(resultTree),
                                 by: eachNode.indent+"  ",
                             })
-                            const wrappedImport = `(\n${eachNode.indent}  ${indentedImport}\n${eachNode.indent})`
+                            const wrappedImport = `(\n${indentedImport}\n${eachNode.indent})`
                             const importPlusWhitespacePlusPathLiteral = 3
                             eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: wrappedImport })
                         })
