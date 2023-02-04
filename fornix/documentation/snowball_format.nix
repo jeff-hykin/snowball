@@ -42,7 +42,7 @@
         };
     };
     
-    PACKAGE_GENERATOR = { python, ... }@input:
+    OUPUT = { __magic__, python, ... }@input:
         let
             exampleValue1 = "blah";
             exampleValue2 = "blah";
