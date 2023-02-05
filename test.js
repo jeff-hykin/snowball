@@ -302,9 +302,15 @@ async function innerBundle(path, callStack=[], rootPath=null, importNameMapping=
                 from: rootPath,
                 to: `${path}/${eachNode.text}`
             })
+            if (newPath.length == 0) {
+                newPath = "./"
+            }
             // must have "./" or "../"
             if (newPath[0] != ".") {
                 newPath = `./${newPath}`
+            }
+            if (newPath == "..") {
+                newPath = "./.."
             }
             eachNode.text = newPath
         }
