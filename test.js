@@ -233,7 +233,8 @@ async function innerBundle(path, callStack=[], rootPath=null) {
                     (eachNode.children[indexOfVariableExpression]?.children||[{}])[0].text == "import" && 
                     (eachNode.children[indexOfPathExpression]?.children||[{}])[0].type == "path_fragment"
                 ) {
-                    const relativePath = eachNode.children[indexOfPathExpression].children[0].text
+                    const literalRelativePathNode = (eachNode.children[indexOfPathExpression]?.children||[{}])[0]
+                    const relativePath = literalRelativePathNode.text
                     const rawTarget = `${FileSystem.parentPath(path)}/${relativePath}`
                     const infoForTarget = await FileSystem.info(rawTarget)
                     let realTargetPath = rawTarget
@@ -293,8 +294,9 @@ async function innerBundle(path, callStack=[], rootPath=null) {
 
 async function bundle(path) {
     let [ folders, name, ext ] = await FileSystem.pathPieces(path)
+    
     await FileSystem.write({
-        path: FileSystem.join(...folders)+`/${name}.bundle${ext}`,
+        path: FileSystem.parentPath(path)+`/${name}.bundle${ext}`,
         data: json2Nix(await innerBundle(path)),
     })
 }
