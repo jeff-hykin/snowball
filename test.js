@@ -198,7 +198,10 @@ function getInputs(path) {
 //     })
 // }
 
-async function innerBundle(path, callStack=[]) {
+async function innerBundle(path, callStack=[], rootPath=null) {
+    if (!rootPath) {
+        rootPath = path
+    }
     callStack = [...callStack] // local copy (dont mutate parent copy)
     callStack.push(path)
     
@@ -260,7 +263,7 @@ async function innerBundle(path, callStack=[]) {
 
                     console.debug(`pulling in:`, realTargetPath)
                     promises.push(
-                        innerBundle(realTargetPath, callStack).then(resultTree=>{
+                        innerBundle(realTargetPath, callStack, rootPath).then(resultTree=>{
                             const indentedImport = indent({
                                 string: json2Nix(resultTree),
                                 by: eachNode.indent+"  ",
@@ -272,6 +275,16 @@ async function innerBundle(path, callStack=[]) {
                     )
                 }
             }
+        }
+    }
+    // change all relative paths to be relative to the rootPath (otherwise they refer to the wrong thing)
+    for (const eachNode of allNodes) {
+        // make relative to current path
+        if (eachNode.type == "path_fragment") {
+            eachNode.text = FileSystem.makeRelativePath({
+                from: rootPath,
+                to: `${path}/${eachNode.text}`
+            })
         }
     }
     await Promise.all(promises)
@@ -286,5 +299,5 @@ async function bundle(path) {
     })
 }
 
-await bundle("./test.nix")
+await bundle("/Users/jeffhykin/repos/nixpkgs/lib/default.nix")
 // await format("./test.nix")
