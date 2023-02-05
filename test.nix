@@ -1,1 +1,1 @@
-import ../nixpkgs-skeleton/flake.nix
+import ../nixpkgs-skeleton/pkgs/stdenv/darwin/default.nix
