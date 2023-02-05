@@ -1,6 +1,7 @@
 import { parse } from "./fornix/support/nix_parser.bundle.js"
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString } from "https://deno.land/x/good@0.7.8/string.js"
-import { FileSystem } from "https://deno.land/x/quickr@0.6.16/main/file_system.js"
+import { FileSystem } from "https://deno.land/x/quickr@0.6.17/main/file_system.js"
+import { yellow } from "https://deno.land/x/quickr@0.6.17/main/console.js"
 
 var nixStuff = Deno.readTextFileSync("fornix/documentation/snowball_format.nix")
 var nixStuff = Deno.readTextFileSync("/Users/jeffhykin/repos/nix-ros-overlay/distros/rolling/velodyne-driver/default.nix")
@@ -113,8 +114,6 @@ function json2Nix(jsonTree) {
     return nodeList(jsonTree).map(each=>each.text||"").join("")
 }
 
-// console.log(JSON.stringify( nodeAsJsonObject(realParse(" { lib}: 10").rootNode),0,4))
-
 function getInputs(path) {
     const tree = realParse(Deno.readTextFileSync(path))
     let indent = ""
@@ -198,8 +197,10 @@ function getInputs(path) {
 //     })
 // }
 
-async function innerBundle(path, callStack=[], rootPath=null) {
-    if (!rootPath) {
+async function innerBundle(path, callStack=[], rootPath=null, importNameMapping={}, importValueMapping={}, globalVariable=null) {
+    const isRoot = rootPath == null
+    if (isRoot) {
+        globalVariable = `_-_${Math.random()}_-_`.replace(/\./,"")
         rootPath = path
     }
     callStack = [...callStack] // local copy (dont mutate parent copy)
@@ -244,34 +245,49 @@ async function innerBundle(path, callStack=[], rootPath=null) {
                     }
                     if (!infoForTarget.exists) {
                         replaceWithNull(`doesnt exist: import ${FileSystem.normalize(rawTarget)}`)
-                        console.warn(`import doesn't exist: ${JSON.stringify(FileSystem.normalize(rawTarget))}, search for: ${relativePath}, in ${callStack.slice(-1)[0]}`)
+                        console.warn(yellow`import doesn't exist: ${JSON.stringify(FileSystem.normalize(rawTarget))}, search for: ${relativePath}, in ${callStack.slice(-1)[0]}`)
                         continue // no replacement
                     } else if (infoForTarget.isFolder) {
                         realTargetPath = `${rawTarget}/default.nix`
                         const infoForTarget = await FileSystem.info(realTargetPath)
                         if (!infoForTarget.exists) {
                             replaceWithNull(`doesnt exist: import ${FileSystem.normalize(realTargetPath)}`)
-                            console.warn(`import doesn't exist: ${JSON.stringify(FileSystem.normalize(rawTarget))}, search for: ${relativePath}, in ${callStack.slice(-1)[0]}`)
+                            console.warn(yellow`import doesn't exist: ${JSON.stringify(FileSystem.normalize(rawTarget))}, search for: ${relativePath}, in ${callStack.slice(-1)[0]}`)
                             continue // no replacement
                         }
                     }
                     realTargetPath = FileSystem.normalize(realTargetPath)
                     
-                    if (callStack.includes(realTargetPath)) {
-                        console.warn(`recursive import: ${relativePath}, import stack: ${JSON.stringify(callStack.concat([realTargetPath]))}`)
-                        continue // no replacement
+                    // 
+                    // replacement
+                    // 
+                    const importPlusWhitespacePlusPathLiteral = 3
+                    const attributeName = JSON.stringify(realTargetPath).replace(/\{/g,"\\\{")
+                    // if already seen/read
+                    if (importNameMapping[realTargetPath]) {
+                        // if recursive
+                        if (callStack.includes(realTargetPath)) {
+                            eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: `/*import:recursive*/ ${importNameMapping[realTargetPath]}` })
+                        // if merely seen somewhere else
+                        } else {
+                            eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: `/*import:normal*/ ${importNameMapping[realTargetPath]}` })
+                        }
+                        continue
+                    // first time the import has been seen
+                    } else {
+                        importNameMapping[realTargetPath] = `${globalVariable}.${attributeName}`
+                        eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: `/*import:first*/ ${importNameMapping[realTargetPath]}` })
                     }
-
-                    console.debug(`pulling in:`, realTargetPath)
+                    
+                    // create a promise resolving the value of the import
                     promises.push(
-                        innerBundle(realTargetPath, callStack, rootPath).then(resultTree=>{
+                        innerBundle(realTargetPath, callStack, rootPath, importNameMapping, importValueMapping, globalVariable).then(resultTree=>{
                             const indentedImport = indent({
                                 string: json2Nix(resultTree),
-                                by: eachNode.indent+"  ",
+                                by: "      ",
                             })
-                            const wrappedImport = `(# ${JSON.stringify(realTargetPath)}\n${indentedImport}\n${eachNode.indent})`
-                            const importPlusWhitespacePlusPathLiteral = 3
-                            eachNode.children.splice(indexOfVariableExpression, importPlusWhitespacePlusPathLiteral, { text: wrappedImport })
+                            // get the value of the mapping
+                            importValueMapping[attributeName] =  `(# ${JSON.stringify(realTargetPath)}\n${indentedImport}\n    )`
                         })
                     )
                 }
@@ -282,24 +298,54 @@ async function innerBundle(path, callStack=[], rootPath=null) {
     for (const eachNode of allNodes) {
         // make relative to current path
         if (eachNode.type == "path_fragment") {
-            eachNode.text = FileSystem.makeRelativePath({
+            let newPath = FileSystem.makeRelativePath({
                 from: rootPath,
                 to: `${path}/${eachNode.text}`
             })
+            // must have "./" or "../"
+            if (newPath[0] != ".") {
+                newPath = `./${newPath}`
+            }
+            eachNode.text = newPath
         }
     }
     await Promise.all(promises)
+    jsonableTree.importNameMapping = importNameMapping
+    jsonableTree.importValueMapping = importValueMapping
+    jsonableTree.globalVariable = globalVariable
     return jsonableTree
 }
 
 async function bundle(path) {
     let [ folders, name, ext ] = await FileSystem.pathPieces(path)
+    const jsonableTree = await innerBundle(path)
+    const { globalVariable, importValueMapping } = jsonableTree
+    
+    // create all the global imported values
+    const outputString = `(rec {
+  ${globalVariable} = {${Object.entries(importValueMapping).map(([key, value])=>
+    `\n    ${key} = ${value};`
+  ).join("")}
+  };
+  output = (\n${indent({
+    string: json2Nix(jsonableTree),
+    by: "    "
+  })}
+  );
+}.output)`
     
     await FileSystem.write({
-        path: FileSystem.parentPath(path)+`/${name}.bundle${ext}`,
-        data: json2Nix(await innerBundle(path)),
+        path: FileSystem.cwd+`/${name}.bundle${ext}`,
+        data: outputString,
     })
 }
 
+// await bundle("test.nix")
 await bundle("/Users/jeffhykin/repos/nixpkgs/lib/default.nix")
 // await format("./test.nix")
+// console.log(JSON.stringify( nodeAsJsonObject(realParse(`
+// let
+//     platforms = import ../systems/examples.nix/platforms.nix { inherit lib; };
+// in
+//     10
+// `).rootNode),0,4))
