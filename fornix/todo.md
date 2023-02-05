@@ -1,3 +1,20 @@
+- create full recursive cowsay snowball
+    - DONE: bundle lib into one nix file
+    - make package-args.nix
+        - copy `all-package.nix`, find all `[name] = callPackage [pathLiteral] [...stuff];` and check which ones are a function that returns a derivation
+        - parse the `[pathLiteral]`, get all the arguments, create `[pathLiteral].arguments.nix` with the same parameters, but add a `@arguments` if its missing and then return `arguments`
+        - replace the `[name] = callPackage [pathLiteral]  [...stuff];` with `[name] = callPackage [pathLiteral].arguments.nix [...stuff];`
+        - generate an import statement for each of the arguments
+    - create a `snowball.nix` inside every package folder
+        - a function with an input for `__magic__`
+        - have a `input.default` that uses builtins to import arg-default values from the local args function
+        - have an `output` function that accepts `__magic__` and all the normal arguments, and have the body of the function be the same as the normal function body
+        - guess constraints (system described below)
+    - for each of the default values in each package, try to replace by importing dependencies with snowball-dependencies with every argument specified, and add every snowball-dependency argument value to the list of arguments on the main package
+    - make a list of packages that take problematic things (pkgs, callPackage, etc) as inputs, have those as splicing-off points
+
+
+
 - DONE Get signature CLI tool working
 - DONE initial write of create-identity function
 - DONE initial write of cli-publish

@@ -1,57 +1,193 @@
-let
-    genericData = {
-        shellFile = if localSystem.isAarch64 then ./unpack-bootstrap-tools-aarch64.sh else ./unpack-bootstrap-tools.sh;
-        bootstrapTarball = (
-            if localSystem.isAarch64 then
-                "http://tarballs.nixos.org/stdenv-darwin/aarch64/20acd4c4f14040485f40e55c0a76c186aa8ca4f3/"
-            else
-                "http://tarballs.nixos.org/stdenv-darwin/x86_64/c253216595572930316f2be737dc288a1da22558/"
-        );
-        checkSums = {
-            sh      = if localSystem.isAarch64 then "17m3xrlbl99j3vm7rzz3ghb47094dyddrbvs2a6jalczvmx7spnj" else "sha256-igMAVEfumFv/LUNTGfNi2nSehgTNIP4Sg+f3L7u6SMA=";
-            bzip2   = if localSystem.isAarch64 then "1khs8s5klf76plhlvlc1ma838r8pc1qigk9f5bdycwgbn0nx240q" else "sha256-K3rhkJZipudT1Jgh+l41Y/fNsMkrPtiAsNRDha/lpZI=";
-            mkdir   = if localSystem.isAarch64 then "1m9nk90paazl93v43myv2ay68c1arz39pqr7lk5ddbgb177hgg8a" else "sha256-VddFELwLDJGNADKB1fWwWPBtIAlEUgJv2hXRmC4NEeM=";
-            cpio    = if localSystem.isAarch64 then "17pxq61yjjvyd738fy9f392hc9cfzkl612sdr9rxr3v0dgvm8y09" else "sha256-SWkwvLaFyV44kLKL2nx720SvcL4ej/p2V/bX3uqAGO0=";
-            tarball = if localSystem.isAarch64 then "1v2332k33akm6mrm4bj749rxnnmc2pkbgcslmd0bbkf76bz2ildy" else "sha256-kRC/bhCmlD4L7KAvJQgcukk7AinkMz4IwmG1rqlh5tA=";
-        };
-    };
-    
-    
-    fetch = { file, sha256, executable ? true }: import <nix/fetchurl.nix> {
-        url = "${genericData.bootstrapTarball}/${file}";
-        system      = localSystem.system;
-        sha256      = sha256;
-        executable  = executable;
-    };
-    
-    bootstrapFiles = {
-        sh      = fetch { file = "sh"   ; sha256 = genericData.checkSums.sh   ; };
-        bzip2   = fetch { file = "bzip2"; sha256 = genericData.checkSums.bzip2; };
-        mkdir   = fetch { file = "mkdir"; sha256 = genericData.checkSums.mkdir; };
-        cpio    = fetch { file = "cpio" ; sha256 = genericData.checkSums.cpio ; };
-        tarball = fetch { file = "bootstrap-tools.cpio.bz2"; sha256 = genericData.checkSums.tarball; executable = false; };
-    };
-    
-    bootstrapTools = bootstrapTools = derivation ({
-        system = builtins.localSystem;
+# impure_helpers source:
+    # let
+    #     lib = builtins.import "url for standalone lib"
+    # in
+    #     { __magic__ }: {
+    #         runCommandWith = (
+    #             {
+    #                 # which stdenv to use, defaults to a stdenv with a C compiler, pkgs.stdenv
+    #                 stdenv ? __magic__.stdenv
+    #                 # whether to build this derivation locally instead of substituting
+    #                 , runLocal ? false
+    #                 # extra arguments to pass to stdenv.mkDerivation
+    #                 , derivationArgs ? {}
+    #                 # name of the resulting derivation
+    #                 , name
+    #                 # TODO(@Artturin): enable strictDeps always
+    #             }: buildCommand:
+    #                 stdenv.mkDerivation (
+    #                     {
+    #                         enableParallelBuilding = true;
+    #                         buildCommand  = buildCommand;
+    #                         name          = name;
+    #                         passAsFile = [ "buildCommand" ]
+    #                             ++ (derivationArgs.passAsFile or []);
+    #                     } // (lib.optionalAttrs runLocal {
+    #                         preferLocalBuild = true;
+    #                         allowSubstitutes = false;
+    #                     }) // builtins.removeAttrs derivationArgs [ "passAsFile" ]
+    #                 )
+    #         );
+    #     
+    #         runCommand = name: env: runCommandWith {
+    #             stdenv = __magic__.stdenvNoCC;
+    #             runLocal = false;
+    #             name = name;
+    #             derivationArgs = env;
+    #         };
+    #        
+    #         substituteAll = (
+    #             args:
+    #                 # see the substituteAll in the nixpkgs documentation for usage and constaints
+    #                 __magic__.stdenvNoCC.mkDerivation ({
+    #                     name = if args ? name then args.name else baseNameOf (toString args.src);
+    #                     builder = ./substitute-all.sh;
+    #                     src  = args.src;
+    #                     preferLocalBuild = true;
+    #                     allowSubstitutes = false;
+    #                 } // args)
+    #         );
+    #         emptyFile = (
+    #             impureHelpers.runCommand "empty-file" {
+    #                 outputHashAlgo = "sha256";
+    #                 outputHashMode = "recursive";
+    #                 outputHash = "0ip26j2h11n1kgkz36rl4akv694yz65hr72q4kv4b3lxcbi65b3p";
+    #                 preferLocalBuild = true;
+    #             } "touch $out"
+    #         );
+    #         writeTextFile =
+    #             { name # the name of the derivation
+    #             , text
+    #             , executable ? false # run chmod +x ?
+    #             , destination ? ""   # relative path appended to $out eg "/bin/foo"
+    #             , checkPhase ? ""    # syntax checks, e.g. for scripts
+    #             , meta ? { }
+    #             }:
+    #             runCommand name
+    #                 { inherit text executable checkPhase meta;
+    #                     passAsFile = [ "text" ];
+    #                     # Pointless to do this on a remote machine.
+    #                     preferLocalBuild = true;
+    #                     allowSubstitutes = false;
+    #                 }
+    #                 ''
+    #                     target=$out${lib.escapeShellArg destination}
+    #                     mkdir -p "$(dirname "$target")"
+    #     
+    #                     if [ -e "$textPath" ]; then
+    #                         mv "$textPath" "$target"
+    #                     else
+    #                         echo -n "$text" > "$target"
+    #                     fi
+    #     
+    #                     eval "$checkPhase"
+    #     
+    #                     (test -n "$executable" && chmod +x "$target") || true
+    #                 '';
+    #         writeText = name: text: writeTextFile {inherit name text;};
+    #     }
 
-        name = "bootstrap-tools";
-        builder = bootstrapFiles.sh; # Not a filename! Attribute 'sh' on bootstrapFiles
-        args = [ genericData.shellFile ];
+# curl replacement source:
+    # zlib_Bootstrap1 = { __magic__ }: 
+    #     __magic__.buildPackages.zlib.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot; 
+    #     }
+    # ;
+    # packageConf_Bootstrap1 = { __magic__ }: 
+    #     __magic__.buildPackages.pkg-config.override (old: {
+    #         pkg-config = old.pkg-config.override {
+    #             fetchurl = __magic__.stdenv.fetchurlBoot;
+    #         };
+    #     })
+    # ;
+    # perl_Bootstrap1 = { __magic__ }: 
+    #     __magic__.buildPackages.perl.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot;
+    #     }
+    # ;
+    # xz_Bootstrap1 = { __magic__ }: 
+    #     __magic__.buildPackages.xz.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot; 
+    #     }
+    # ;
+    # coreutils_Bootstrap1 = { __magic__, perl_Bootstrap1, xz_Bootstrap1 }: 
+    #     buildPackages.coreutils.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot;
+    #         perl = perl_Bootstrap1;
+    #         xz = xz_Bootstrap1;
+    #         gmp = null;
+    #         aclSupport = false;
+    #         attrSupport = false;
+    #     }
+    # ;
+    # openssl_Bootstrap1 = { __magic__, perl_Bootstrap1, coreutils_Bootstrap1 }: 
+    #     buildPackages.openssl.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot;
+    #         perl = perl_Bootstrap1;
+    #         buildPackages = {
+    #             perl = perl_Bootstrap1;
+    #             coreutils = coreutils_Bootstrap1;
+    #         };
+    #     }
+    # ;
+    # libssh2_Bootstrap1 = { __magic__, zlib_Bootstrap1, openssl_Bootstrap1 }: 
+    #     __magic__.buildPackages.libssh2.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot;
+    #         zlib     = zlib_Bootstrap1;
+    #         openssl  = openssl_Bootstrap1;
+    #     }
+    # ;
+    # keyutils_Bootstrap1 = { __magic__ }: 
+    #     __magic__.buildPackages.keyutils.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot; 
+    #     }
+    # ;
+    # libkrb5_Bootstrap1 = { __magic__, packageConf_Bootstrap1, perl_Bootstrap1, openssl_Bootstrap1, keyutils_Bootstrap1 }: 
+    #     __magic__.buildPackages.libkrb5.override {
+    #         fetchurl    = __magic__.stdenv.fetchurlBoot;
+    #         pkg-config  = packageConf_Bootstrap1;
+    #         perl        = perl_Bootstrap1;
+    #         openssl     = openssl_Bootstrap1;
+    #         keyutils    = keyutils_Bootstrap1;
+    #     }
+    # ;
+    # nghttp2_Bootstrap1 = { __magic__, packageConf_Bootstrap1 }: 
+    #     __magic__.buildPackages.nghttp2.override {
+    #         fetchurl = __magic__.stdenv.fetchurlBoot;
+    #         pkg-config = packageConf_Bootstrap1;
+    #         enableApp = false; # curl just needs libnghttp2
+    #         enableTests = false; # avoids bringing `cunit` and `tzdata` into scope
+    #     }
+    # ;
+    # curl = { __magic__, packageConf_Bootstrap1, zlib_Bootstrap1, packageConf_Bootstrap1, perl_Bootstrap1, openssl_Bootstrap1, libssh2_Bootstrap1, libkrb5_Bootstrap1, nghttp2_Bootstrap1 }: 
+    #     __magic__.buildPackages.curlMinimal.override (old: {
+    #         # break dependency cycles
+    #         fetchurl   = __magic__.stdenv.fetchurlBoot;
+    #         zlib       = zlib_Bootstrap1;
+    #         pkg-config = packageConf_Bootstrap1;
+    #         perl       = perl_Bootstrap1;
+    #         openssl    = openssl_Bootstrap1;
+    #         libssh2    = libssh2_Bootstrap1;
+    #         # On darwin, libkrb5 needs bootstrap_cmds which would require
+    #         # converting many packages to fetchurl_boot to avoid evaluation cycles.
+    #         # So turn gssSupport off there, and on Windows.
+    #         # On other platforms, keep the previous value.
+    #         gssSupport =
+    #             if __magic__.stdenv.isDarwin || __magic__.stdenv.hostPlatform.isWindows
+    #                 then false
+    #                 else old.gssSupport or true; # `? true` is the default
+    #         libkrb5 = libkrb5_Bootstrap1;
+    #         nghttp2 = nghttp2_Bootstrap1;
+    #     });
 
-        mkdir    = bootstrapFiles.mkdir;
-        bzip2    = bootstrapFiles.bzip2;
-        cpio     = bootstrapFiles.cpio;
-        tarball  = bootstrapFiles.tarball;
+# FIXME: everything from __magic__ should be limited to a minimal amount of impure values
+    # fetchurl is a problem child, needs to be handled manually
+    # perl is a problem child, needs to be handled manually
+    # e.g. fetchFromGitHub, etc shouldn't be inside __magic__
+    # buildPackages can be allowed though (thats kinda the foundation)
 
-        __impureHostDeps = commonImpureHostDeps;
-    } // lib.optionalAttrs __magic__.config.contentAddressedByDefault {
-        __contentAddressed = true;
-        outputHashAlgo = "sha256";
-        outputHashMode = "recursive";
-    });
 { __magic__ }:
-    # __magic__.fetchurl
+    # __magic__.config
     # __magic__.stdenvNoCC
     
     # __magic__.stdenv.shellPackage                     # bash
@@ -116,281 +252,274 @@ let
             # 
             # values
             # 
-            lib = __magic__.import "url_to_lib";
-            # runCommandWith = (
-            #     {
-            #         # which stdenv to use, defaults to a stdenv with a C compiler, pkgs.stdenv
-            #         stdenv ? __magic__.stdenv
-            #         # whether to build this derivation locally instead of substituting
-            #         , runLocal ? false
-            #         # extra arguments to pass to stdenv.mkDerivation
-            #         , derivationArgs ? {}
-            #         # name of the resulting derivation
-            #         , name
-            #         # TODO(@Artturin): enable strictDeps always
-            #     }: buildCommand:
-            #         stdenv.mkDerivation (
-            #             {
-            #                 enableParallelBuilding = true;
-            #                 buildCommand  = buildCommand;
-            #                 name          = name;
-            #                 passAsFile = [ "buildCommand" ]
-            #                     ++ (derivationArgs.passAsFile or []);
-            #             } // (lib.optionalAttrs runLocal {
-            #                 preferLocalBuild = true;
-            #                 allowSubstitutes = false;
-            #             }) // builtins.removeAttrs derivationArgs [ "passAsFile" ]
-            #         )
-            # );
-            
-            # runCommand = name: env: runCommandWith {
-            #     stdenv = __magic__.stdenvNoCC;
-            #     runLocal = false;
-            #     name = name;
-            #     derivationArgs = env;
-            # };
-            
-            # substituteAll = (
-            #     args:
-            #         # see the substituteAll in the nixpkgs documentation for usage and constaints
-            #         __magic__.stdenvNoCC.mkDerivation ({
-            #             name = if args ? name then args.name else baseNameOf (toString args.src);
-            #             builder = ./substitute-all.sh;
-            #             src  = args.src;
-            #             preferLocalBuild = true;
-            #             allowSubstitutes = false;
-            #         } // args)
-            # );
-            
-            # fetchurl = (
-            #     {
-            #         lib,
-            #         buildPackages ? { inherit stdenvNoCC; },
-            #         stdenvNoCC,
-            #         # Note that `curl' may be `null', in case of the native stdenvNoCC.
-            #         curl,
-            #         cacert ? null 
-            #     }:
-            #         let
-            #             mirrors = import ./mirrors.nix;
-            #             # Write the list of mirrors to a file that we can reuse between
-            #             # fetchurl instantiations, instead of passing the mirrors to
-            #             # fetchurl instantiations via environment variables.  This makes the
-            #             # resulting store derivations (.drv files) much smaller, which in
-            #             # turn makes nix-env/nix-instantiate faster.
-            #             mirrorsFile =
-            #                 buildPackages.stdenvNoCC.mkDerivation ({
-            #                     name = "mirrors-list";
-            #                     strictDeps = true;
-            #                     builder = ./write-mirror-list.sh;
-            #                     preferLocalBuild = true;
-            #                 } // mirrors);
-            #
-            #             # Names of the master sites that are mirrored (i.e., "sourceforge",
-            #             # "gnu", etc.).
-            #             sites = builtins.attrNames mirrors;
-            #
-            #             impureEnvVars = lib.fetchers.proxyImpureEnvVars ++ [
-            #                 # This variable allows the user to pass additional options to curl
-            #                 "NIX_CURL_FLAGS"
-            #
-            #                 # This variable allows the user to override hashedMirrors from the
-            #                 # command-line.
-            #                 "NIX_HASHED_MIRRORS"
-            #
-            #                 # This variable allows overriding the timeout for connecting to
-            #                 # the hashed mirrors.
-            #                 "NIX_CONNECT_TIMEOUT"
-            #             ] ++ (map (site: "NIX_MIRRORS_${site}") sites);
-            #
-            #         in
-            #
-            #         { # URL to fetch.
-            #             url ? ""
-            #
-            #         , # Alternatively, a list of URLs specifying alternative download
-            #             # locations.  They are tried in order.
-            #             urls ? []
-            #
-            #         , # Additional curl options needed for the download to succeed.
-            #             # Warning: Each space (no matter the escaping) will start a new argument.
-            #             # If you wish to pass arguments with spaces, use `curlOptsList`
-            #             curlOpts ? ""
-            #
-            #         , # Additional curl options needed for the download to succeed.
-            #             curlOptsList ? []
-            #
-            #         , # Name of the file.  If empty, use the basename of `url' (or of the
-            #             # first element of `urls').
-            #             name ? ""
-            #
-            #             # for versioned downloads optionally take pname + version.
-            #         , pname ? ""
-            #         , version ? ""
-            #
-            #         , # SRI hash.
-            #             hash ? ""
-            #
-            #         , # Legacy ways of specifying the hash.
-            #             outputHash ? ""
-            #         , outputHashAlgo ? ""
-            #         , md5 ? ""
-            #         , sha1 ? ""
-            #         , sha256 ? ""
-            #         , sha512 ? ""
-            #
-            #         , recursiveHash ? false
-            #
-            #         , # Shell code to build a netrc file for BASIC auth
-            #             netrcPhase ? null
-            #
-            #         , # Impure env vars (https://nixos.org/nix/manual/#sec-advanced-attributes)
-            #             # needed for netrcPhase
-            #             netrcImpureEnvVars ? []
-            #
-            #         , # Shell code executed after the file has been fetched
-            #             # successfully. This can do things like check or transform the file.
-            #             postFetch ? ""
-            #
-            #         , # Whether to download to a temporary path rather than $out. Useful
-            #             # in conjunction with postFetch. The location of the temporary file
-            #             # is communicated to postFetch via $downloadedFile.
-            #             downloadToTemp ? false
-            #
-            #         , # If true, set executable bit on downloaded file
-            #             executable ? false
-            #
-            #         , # If set, don't download the file, but write a list of all possible
-            #             # URLs (resulting from resolving mirror:// URLs) to $out.
-            #             showURLs ? false
-            #
-            #         , # Meta information, if any.
-            #             meta ? {}
-            #
-            #             # Passthru information, if any.
-            #         , passthru ? {}
-            #             # Doing the download on a remote machine just duplicates network
-            #             # traffic, so don't do that by default
-            #         , preferLocalBuild ? true
-            #
-            #             # Additional packages needed as part of a fetch
-            #         , nativeBuildInputs ? [ ]
-            #         }:
-            #
-            #         let
-            #             urls_ =
-            #                 if urls != [] && url == "" then
-            #                     (if lib.isList urls then urls
-            #             else throw "`urls` is not a list")
-            #                 else if urls == [] && url != "" then
-            #                     (if lib.isString url then [url]
-            #             else throw "`url` is not a string")
-            #                 else throw "fetchurl requires either `url` or `urls` to be set";
-            #
-            #             hash_ =
-            #                 # Many other combinations don't make sense, but this is the most common one:
-            #                 if hash != "" && sha256 != "" then throw "multiple hashes passed to fetchurl" else
-            #
-            #                 if hash != "" then { outputHashAlgo = null; outputHash = hash; }
-            #                 else if md5 != "" then throw "fetchurl does not support md5 anymore, please use sha256 or sha512"
-            #                 else if (outputHash != "" && outputHashAlgo != "") then { inherit outputHashAlgo outputHash; }
-            #                 else if sha512 != "" then { outputHashAlgo = "sha512"; outputHash = sha512; }
-            #                 else if sha256 != "" then { outputHashAlgo = "sha256"; outputHash = sha256; }
-            #                 else if sha1   != "" then { outputHashAlgo = "sha1";   outputHash = sha1; }
-            #                 else if cacert != null then { outputHashAlgo = "sha256"; outputHash = ""; }
-            #                 else throw "fetchurl requires a hash for fixed-output derivation: ${lib.concatStringsSep ", " urls_}";
-            #         in
-            #
-            #         stdenvNoCC.mkDerivation ((
-            #             if (pname != "" && version != "") then
-            #                 { inherit pname version; }
-            #             else
-            #                 { name =
-            #                     if showURLs then "urls"
-            #                     else if name != "" then name
-            #                     else baseNameOf (toString (builtins.head urls_));
-            #                 }
-            #         ) // {
-            #             builder = ./builder.sh;
-            #
-            #             nativeBuildInputs = [ curl ] ++ nativeBuildInputs;
-            #
-            #             urls = urls_;
-            #
-            #             # If set, prefer the content-addressable mirrors
-            #             # (http://tarballs.nixos.org) over the original URLs.
-            #             preferHashedMirrors = true;
-            #
-            #             # New-style output content requirements.
-            #             inherit (hash_) outputHashAlgo outputHash;
-            #
-            #             SSL_CERT_FILE = if (hash_.outputHash == "" || hash_.outputHash == lib.fakeSha256 || hash_.outputHash == lib.fakeSha512 || hash_.outputHash == lib.fakeHash)
-            #                                             then "${cacert}/etc/ssl/certs/ca-bundle.crt"
-            #                                             else "/no-cert-file.crt";
-            #
-            #             outputHashMode = if (recursiveHash || executable) then "recursive" else "flat";
-            #
-            #             curlOpts = lib.warnIf (lib.isList curlOpts) ''
-            #                 fetchurl for ${toString (builtins.head urls_)}: curlOpts is a list (${lib.generators.toPretty { multiline = false; } curlOpts}), which is not supported anymore.
-            #                 - If you wish to get the same effect as before, for elements with spaces (even if escaped) to expand to multiple curl arguments, use a string argument instead:
-            #                     curlOpts = ${lib.strings.escapeNixString (toString curlOpts)};
-            #                 - If you wish for each list element to be passed as a separate curl argument, allowing arguments to contain spaces, use curlOptsList instead:
-            #                     curlOptsList = [ ${lib.concatMapStringsSep " " lib.strings.escapeNixString curlOpts} ];'' curlOpts;
-            #             curlOptsList = lib.escapeShellArgs curlOptsList;
-            #             inherit showURLs mirrorsFile postFetch downloadToTemp executable;
-            #
-            #             impureEnvVars = impureEnvVars ++ netrcImpureEnvVars;
-            #
-            #             nixpkgsVersion = lib.trivial.release;
-            #
-            #             inherit preferLocalBuild;
-            #
-            #             postHook = if netrcPhase == null then null else ''
-            #                 ${netrcPhase}
-            #                 curlOpts="$curlOpts --netrc-file $PWD/netrc"
-            #             '';
-            #
-            #             inherit meta;
-            #             passthru = { inherit url; } // passthru;
-            #         })
-            # );
+            lib           = __magic__.import "url_to_lib";
+            impureHelpers = __magic__.import "url to impure helpers" {
+                __magic__ = __magic__;
+            };
             
             # 
             # packages
             # 
-            bash = {
+            # cacertBootstrap1 = {
+            #     inputs = {
+            #         blacklist               = [];
+            #         extraCertificateFiles   = [];
+            #         extraCertificateStrings = [];
+            #         # Used by update.sh
+            #         nssOverride             = null;
+            #         # Used for tests only
+            #         runCommand              = null;
+            #         cacert                  = null;
+            #         openssl                 = null;
+            #         lib                     = __magic__.import "url_to_lib";
+            #         stdenv                  = __magic__.stdenv;
+            #         fetchurl                = __magic__.stdenv.fetchurlBoot;
+            #         writeText               = impureHelpers.writeText;
+            #         buildcatrust            = MISSING; # ... this ... is a python package
+            #     };
+            # };
+            zlib_Bootstrap1 = __magic__.package {
                 inputs = {
-                    
+                    __magic__ = __magic__; 
                 };
             };
-            testers = {
+            keyutils_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__; 
+                };
+            };
+            packageConf_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__; 
+                };
+            };
+            perl_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__; 
+                };
+            };
+            xz_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__; 
+                };
+            };
+            coreutils_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__;
+                    perl_Bootstrap1 = perl_Bootstrap1;
+                    xz_Bootstrap1 = xz_Bootstrap1;
+                };
+            };
+            openssl_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__;
+                    perl_Bootstrap1 = perl_Bootstrap1;
+                    coreutils_Bootstrap1 = coreutils_Bootstrap1; 
+                };
+            };
+            libssh2_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__;
+                    zlib_Bootstrap1 = zlib_Bootstrap1;
+                    openssl_Bootstrap1 = openssl_Bootstrap1; 
+                };
+            };
+            libkrb5_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__;
+                    packageConf_Bootstrap1 = packageConf_Bootstrap1;
+                    perl_Bootstrap1 = perl_Bootstrap1;
+                    openssl_Bootstrap1 = openssl_Bootstrap1;
+                    keyutils_Bootstrap1 = keyutils_Bootstrap1;
+                };
+            };
+            nghttp2_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__;
+                    packageConf_Bootstrap1 = packageConf_Bootstrap1; 
+                };
+            };
+            curl_Bootstrap1 = __magic__.package {
+                inputs = {
+                    __magic__ = __magic__;
+                    packageConf_Bootstrap1 = packageConf_Bootstrap1;
+                    zlib_Bootstrap1        = zlib_Bootstrap1;
+                    packageConf_Bootstrap1 = packageConf_Bootstrap1;
+                    perl_Bootstrap1        = perl_Bootstrap1;
+                    openssl_Bootstrap1     = openssl_Bootstrap1;
+                    libssh2_Bootstrap1     = libssh2_Bootstrap1;
+                    libkrb5_Bootstrap1     = libkrb5_Bootstrap1;
+                    nghttp2_Bootstrap1     = nghttp2_Bootstrap1; 
+                };
+            };
+            fetchurl = __magic__.package { # NOTE: this is a custom fetchurl, not auto-generated because the all-packages.nix version is problematic
+                inputs = {
+                    lib           = __magic__.import "url_to_lib";
+                    stdenvNoCC    = __magic__.stdenvNoCC;
+                    stdenv        = __magic__.stdenv;
+                    buildPackages = __magic__.buildPackages; 
+                    cacert        = __magic__.buildPackages.cacert; # TODO: this should maybe have the full cacert, but that would require all of python
+                    curl          = curl_Bootstrap1;
+                    # curl arg is now retreived from buildPackages
+                };
+            };
+            perl_Bootstrap2 = __magic__.package { # NOTE: this is a custom perl, not auto-generated
+                inputs = {
+                    enableCrypt     = false;
+                    enableThreading = true;
+                    lib             = __magic__.import "url_to_lib"; 
+                    fetchurl        = __magic__.stdenv.fetchurlBoot;
+                    config          = __magic__.config; 
+                    buildPackages   = __magic__.buildPackages;
+                    pkgs            = { # PROBLEMATIC; needs a self-reference apparently
+                        perl534   = perl_Bootstrap2.perl534;
+                        perl536   = perl_Bootstrap2.perl536;
+                        perldevel = perl_Bootstrap2.perldevel;
+                    };
+                    stdenv          = __magic__.stdenv;
+                    callPackage     = MISSING; # PROBLEMATIC
+                    fetchFromGitHub = MISSING; 
+                    coreutils       = MISSING; 
+                    makeWrapper     = MISSING; 
+                    zlib            = MISSING; 
+                };
+            };
+            libxcrypt = __magic__.package {
+                inputs = {
+                    lib        = __magic__.import "url_to_lib";
+                    stdenv     = __magic__.stdenv.fetchurlBoot; # special
+                    fetchurl   = fetchurl;
+                    perl       = perl_Bootstrap2;
+                    nixosTests = null;
+                };
+            };
+            
+            # 
+            # 
+            # 
+            fetchgit = __magic__.package {
+                inputs = {
+                    lib         = __magic__.import "url_to_lib";
+                    stdenvNoCC  = __magic__.stdenvNoCC; 
+                    git         = __magic__.buildPackages.gitMinimal;
+                    cacert      = __magic__.buildPackages.cacert;
+                    git-lfs     = __magic__.buildPackages.git-lfs;
+                };
+            };
+            bzip2 = {
+                inputs = { 
+                    lib              = __magic__.import "url_to_lib";
+                    stdenv           = __magic__.stdenv;
+                    fetchurl         = fetchurl;
+                    linkStatic       = __magic__.stdenv.hostPlatform.isStatic || __magic__.stdenv.hostPlatform.isCygwin;
+                    autoreconfHook   = MISSING;
+                };
+            };
+            unzip = {
+                inputs = { 
+                    lib              = __magic__.import "url_to_lib";
+                    stdenv           = __magic__.stdenv;
+                    fetchurl         = fetchurl;
+                    autoreconfHook = MISSING;
+                    popt           = MISSING;
+                    libiconv       = MISSING;
+                };
+            };
+            unzip = {
+                inputs = { 
+                    lib              = __magic__.import "url_to_lib";
+                    stdenv           = __magic__.stdenv;
+                    fetchurl         = fetchurl;
+                    bzip2            = bzip2;
+                    enableNLS        = false;
+                    libnatspec       = MISSING;
+                };
+            };
+            fetchzip = __magic__.package {
+                inputs = {
+                    lib              = __magic__.import "url_to_lib";
+                    fetchurl         = fetchurl;
+                    unzip            = MISSING;
+                    glibcLocalesUtf8 = MISSING;
+                };
+            };
+            fetchFromGitHub = __magic__.package {
+                inputs = {
+                    lib      = __magic__.import "url_to_lib";
+                    fetchgit = fetchgit;
+                    fetchzip = fetchzip;
+                };
+            };
+            gnum4 = __magic__.package {
+                inputs = {
+                    lib      = __magic__.import "url_to_lib";
+                    stdenv   = __magic__.stdenv;
+                    fetchurl = fetchurl;
+                };
+            };
+            # FIXME: perl isn't a flat package yet (maybe will be in a few months though)
+            perl = __magic__.package {
+                inputs = {
+                    enableThreading = true;
+                    enableCrypt     = true;
+                    config          = __magic__.config; 
+                    buildPackages   = __magic__.buildPackages;
+                    lib             = __magic__.import "url_to_lib"; 
+                    stdenv          = __magic__.stdenv; 
+                    libxcrypt       = libxcrypt;
+                    fetchurl        = fetchurl; 
+                    pkgs            = MISSING; # PROBLEMATIC; it only really needs a self-reference, so hopefully this will be factored out soon
+                    callPackage     = MISSING; # PROBLEMATIC
+                    fetchFromGitHub = fetchFromGitHub; 
+                    coreutils       = MISSING; 
+                    makeWrapper     = MISSING; 
+                    zlib            = MISSING; 
+                };
+            };
+            bison = __magic__.package {
+                inputs = {
+                    lib      = __magic__.import "url_to_lib";
+                    stdenv   = __magic__.stdenv;
+                    fetchurl = fetchurl;
+                    m4       = gnum4;
+                    perl     = MISSING;
+                    help2man = MISSING;
+                };
+            };
+            bash = __magic__.package {
+                inputs = {
+                    withDocs      = false; 
+                    forFHSEnv     = false;
+                    binutils      = __magic__.stdenv.cc.bintools; 
+                    interactive   = __magic__.stdenv.isCygwin; # patch for cygwin requires readline support
+                    lib           = __magic__.import "url_to_lib";
+                    stdenv        = __magic__.stdenv; 
+                    buildPackages = __magic__.buildPackages; 
+                    fetchurl      = fetchurl; 
+                    bison         = bison; 
+                    util-linux    = MISSING; 
+                    readline      = MISSING; 
+                    texinfo       = MISSING; 
+                };
+            };
+            testers = __magic__.package {
                 inputs = {
                     stdenv        = __magic__.stdenv;
                     lib           = lib;
-                    runCommand    = runCommand;
-                    substituteAll = substituteAll;
+                    runCommand    = impureHelpers.runCommand;
+                    substituteAll = impureHelpers.substituteAll;
                     pkgs          = {}; # its only used for python, so we can leave it empty here
-                    buildPackages = {
-                        bash      = MISSING;
-                        coreutils = MISSING;
-                    };
+                    buildPackages = __magic__.buildPackages;
                     # it doesn't really use the full callPackage so we can overwrite it with a fake one here
                     callPackage   = path: (import path) { 
                         lib = lib;
-                        runCommand = runCommand;
-                        nix-diff = null; # it requires
-                        emptyFile = (
-                            runCommand "empty-file" {
-                                outputHashAlgo = "sha256";
-                                outputHashMode = "recursive";
-                                outputHash = "0ip26j2h11n1kgkz36rl4akv694yz65hr72q4kv4b3lxcbi65b3p";
-                                preferLocalBuild = true;
-                            } "touch $out"
-                        );
+                        runCommand = impureHelpers.runCommand;
+                        emptyFile = impureHelpers.emptyFile;
+                        nix-diff = null; # it requires a whole haskell tool chain
                     };
                 };
             };
-            cowsay = {
+            cowsay = __magic__.package {
                 inputs = {
                     lib                = lib;
                     fetchFromGitHub    = __magic__.import "url to fetchFromGitHub";
