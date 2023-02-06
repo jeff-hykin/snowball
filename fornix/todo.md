@@ -1,5 +1,8 @@
 - create full recursive cowsay snowball
     - DONE: bundle lib into one nix file
+    - search for every default.nix and every callPackage ./path
+    - create an args.nix for each of them
+    - find the corrisponding attribute being assigned to  import or callPackage ./path, and create another assignment below it with `[attr_name]_Args =` and then callPackage on the args path
     - make package-args.nix
         - copy `all-package.nix`, find all `[name] = callPackage [pathLiteral] [...stuff];` and check which ones are a function that returns a derivation
         - parse the `[pathLiteral]`, get all the arguments, create `[pathLiteral].arguments.nix` with the same parameters, but add a `@arguments` if its missing and then return `arguments`
