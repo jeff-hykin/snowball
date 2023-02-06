@@ -213,6 +213,52 @@ export function echoInputs(path) {
 //     })
 // }
 
+export async function getCallPackagePaths(path) {
+    const string = await FileSystem.read(path)
+    if (!string) {
+        throw Error(`${FileSystem.normalize(path)} doesn't contain anything`)
+    }
+    const tree = realParse(string)
+    const jsonableTree = nodeAsJsonObject(tree.rootNode)
+    const allNodes = nodeList(jsonableTree)
+    const callPackagePaths = []
+    for (const eachNode of allNodes) {
+        if (eachNode.children && eachNode.children.length >= 3) {
+            const childrenTypes = eachNode.children.map(eachNode=>eachNode.type)
+            // FIXME: this gets the first import, but its slightly possible for there to be multiple in the same set of children
+            const indexOfVariableExpression = childrenTypes.indexOf("variable_expression")
+            const indexOfPathExpression = childrenTypes.indexOf("path_expression")
+            
+            // confirm necessary outer structure
+            if (
+                indexOfVariableExpression >= 0
+                && eachNode.children[indexOfVariableExpression + 1]
+                && (eachNode.children[indexOfVariableExpression + 1]?.type == "whitespace")
+                && indexOfVariableExpression + 2 == indexOfPathExpression
+            ) {
+                // confirm necessary inner structure for importing from relative path
+                if (
+                    (eachNode.children[indexOfVariableExpression]?.children||[{}])[0].type == "identifier" && 
+                    (eachNode.children[indexOfVariableExpression]?.children||[{}])[0].text == "callPackage" && 
+                    (eachNode.children[indexOfPathExpression]?.children||[{}])[0].type == "path_fragment"
+                ) {
+                    const literalRelativePathNode = (eachNode.children[indexOfPathExpression]?.children||[{}])[0]
+                    const relativePath = literalRelativePathNode.text
+                    const rawTarget = `${FileSystem.parentPath(path)}/${relativePath}`
+                    const infoForTarget = await FileSystem.info(rawTarget)
+                    let realTargetPath = rawTarget
+                    if (infoForTarget.isFolder) {
+                        realTargetPath = `${rawTarget}/default.nix`
+                    }
+                    realTargetPath = FileSystem.normalize(realTargetPath)
+                    callPackagePaths.push([ relativePath, realTargetPath, path ])
+                }
+            }
+        }
+    }
+    return callPackagePaths
+}
+
 export async function innerBundle(path, callStack=[], rootPath=null, importNameMapping={}, importValueMapping={}, globalVariable=null) {
     const isRoot = rootPath == null
     if (isRoot) {
@@ -371,12 +417,14 @@ export async function createArgsFileFor(path) {
     }
     if (typeof output != 'string') {
         console.log(`skipping: ${path}`)
+        return false
     } else {
         console.log(`processing: ${path}`)
         await FileSystem.write({
             path: FileSystem.dirname(path)+`/${FileSystem.basename(path)}__args.nix`,
             data: output,
         })
+        return true
     }
 }
 
