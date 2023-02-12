@@ -19,7 +19,9 @@ let
             in
                 stringWithoutPrefix
         );
-        
+    # 
+    # generic helpers
+    # 
         doesContain = ({ list, element }:
             (builtins.any
                 (each: each == element)
@@ -75,6 +77,21 @@ let
                     )
                 )
             )
+        );
+        
+        mapToNameValueList = attrset : (builtins.attrValues
+            (mapNamesAndValues {
+                attrset = attrset;
+                function = ({ name, value }:
+                    {
+                        name=name;
+                        value={
+                            name = name;
+                            value = value;
+                        }; 
+                    }
+                );
+            })
         );
     # 
     # main
@@ -214,14 +231,14 @@ let
                 # outputs
                 # 
                     # 
-                    # newAlreadySeen
+                    # alreadySeen
                     # 
                         newValues = (builtins.attrValues
                             remainingAttrsetToExplore
                         );
-                        newAlreadySeen = alreadySeen ++ newValues;
+                        alreadySeen1 = alreadySeen ++ newValues;
                     # 
-                    # handle newArgsForPath
+                    # handle argsForPath
                     # 
                         argsForPathAdditions = (mapNamesAndValues {
                             attrset = attrsetWithOnlyArgNames;
@@ -234,9 +251,9 @@ let
                                 }
                             );
                         });
-                        newArgsForPath = argsForPath // argsForPathAdditions;
+                        argsForPath1 = argsForPath // argsForPathAdditions;
                     # 
-                    # handle newPackageForPath
+                    # handle packageForPath
                     # 
                         packageForPathAdditions = (mapNamesAndValues {
                             attrset = attrsetWithOnlyArgNames;
@@ -254,29 +271,40 @@ let
                                 }
                             );
                         });
-                        newPackageForPath = packageForPath // packageForPathAdditions;
-                    
+                        packageForPath1 = packageForPath // packageForPathAdditions;
                 # 
                 # handle recursion
                 # 
-                    
+                    nameValueListOfUnexplored = (mapToNameValueList
+                        attrsetWithOnlyArgNames
+                    );
+                    recursiveOutputs = (builtins.foldl'
+                        ({ alreadySeen, argsForPath, packageForPath }:
+                            { name, value }:
+                                (getArgs {
+                                    obj = value;
+                                    alreadySeen = alreadySeen;
+                                    argsForPath = argsForPath;
+                                    packageForPath = packageForPath;
+                                    attributePathList = attributePathList ++ [ name ];
+                                })
+                        )
+                        {
+                            alreadySeen = alreadySeen1;
+                            argsForPath = argsForPath1;
+                            packageForPath = packageForPath1;
+                        }
+                        nameValueListOfUnexplored
+                    );
+                    alreadySeen2    = recursiveOutputs.alreadySeen;
+                    argsForPath2    = recursiveOutputs.argsForPath;
+                    packageForPath2 = recursiveOutputs.packageForPath;
             in
-                # if args for already explored
-                    # create the path to that arg
-                    # update the argsForPath with argsForPath1
-                    # update the packageForPath with packageForPath
-                
-                
-                # if actual derivation value already exists
-                # then return null
-                # if args then return { attributePathString, args, normalValue }
-                (builtins.map
-                    
-                    names
-                )
-                (builtins.getAttr
-                    name
-                )
+                {
+                    alreadySeen = alreadySeen2;
+                    argsForPath = argsForPath2;
+                    packageForPath = packageForPath2;
+                }
     );
 in
     getArgs
