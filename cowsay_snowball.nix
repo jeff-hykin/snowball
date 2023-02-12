@@ -420,9 +420,9 @@
                     lib              = __magic__.import "url_to_lib";
                     stdenv           = __magic__.stdenv;
                     fetchurl         = fetchurl;
-                    autoreconfHook = MISSING;
-                    popt           = MISSING;
-                    libiconv       = MISSING;
+                    autoreconfHook   = MISSING;
+                    popt             = MISSING;
+                    libiconv         = MISSING;
                 };
             };
             unzip = {

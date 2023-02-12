@@ -1,5 +1,11 @@
 let
     # 
+    # FIXME: errors cause this to never evaluate
+    # 
+        # will need to switch to a CLI/eval option for finding all non-error paths as BFS
+        # then use geneated nix script to find when an attribute has already been evaluated
+    
+    # 
     # helpers
     # 
         necessaryPrefix = "Args_";
@@ -22,13 +28,14 @@ let
     # 
     # generic helpers
     # 
-        print = message: value: (builtins.trace
-            "\n${message}"            
-            (builtins.trace 
-                value
-                value
-            )
-        );
+        print = message: value: value;
+        #  (builtins.trace
+        #     "\n${message}"            
+        #     (builtins.trace 
+        #         value
+        #         value
+        #     )
+        # );
         doesContain = ({ list, element }:
             (builtins.any
                 (each: each == element)
@@ -119,21 +126,24 @@ let
                         obj
                     );
                     # { key1 = { name = key1; value = shouldBeRemoved}; key2 = { name = key2; value = shouldBeRemoved};  }
-                    namesToSkipAttrset = (builtins.mapAttrs
+                    namesToSkipAttrset = print "namesToSkipAttrset" (builtins.mapAttrs
                         (key: value:
                             let
-                                expressionWithPossibleError = value;
+                                expressionWithPossibleError = print "expressionWithPossibleError" value;
                                 result = (builtins.tryEval
-                                    (builtins.deepSeq
-                                        expressionWithPossibleError
-                                        expressionWithPossibleError
-                                    )
+                                    # (builtins.deepSeq
+                                        (if builtins.isAttrs expressionWithPossibleError then
+                                            expressionWithPossibleError
+                                        else
+                                            null)
+                                        # expressionWithPossibleError
+                                    # )
                                 );
                                 # if couldn't be evaluated, remove it
-                                shouldBeRemoved = !result.success || (doesContain {
+                                shouldBeRemoved = print "shouldBeRemoved" (!result.success || (doesContain {
                                     element = value;
                                     list = alreadySeen;
-                                });
+                                }));
                             in
                                 {
                                     name = key;
@@ -143,19 +153,19 @@ let
                         obj
                     );
                     # [ { name = key1; value = shouldBeRemoved}, { name = key2; value = shouldBeRemoved }  ]
-                    keyValueNamesToSkip = (builtins.attrValues
+                    keyValueNamesToSkip = print "keyValueNamesToSkip" (builtins.attrValues
                         namesToSkipAttrset
                     );
                     # [ { name = key1; value = true }, { name = key2; value = true  }  ]
-                    filteredKeyValueNamesToSkip = (builtins.filter
+                    filteredKeyValueNamesToSkip = print "filteredKeyValueNamesToSkip" (builtins.filter
                         (each: each.value) # value = shouldBeRemoved
                         keyValueNamesToSkip
                     );
-                    namesToSkip = (builtins.map
+                    namesToSkip = print "namesToSkip" (builtins.map
                         (each: each.name)
                         filteredKeyValueNamesToSkip
                     );
-                    remainingAttrsetToExplore = (builtins.removeAttrs
+                    remainingAttrsetToExplore = print "remainingAttrsetToExplore" (builtins.removeAttrs
                         obj
                         namesToSkip
                     );
@@ -286,11 +296,11 @@ let
                                 }
                             );
                         });
-                        packageForPath1 = packageForPath // packageForPathAdditions;
+                        packageForPath1 = print "packageForPath1" (packageForPath // packageForPathAdditions);
                 # 
                 # handle recursion
                 # 
-                    nameValueListOfUnexplored = (mapToNameValueList
+                    nameValueListOfUnexplored = print "nameValueListOfUnexplored" (mapToNameValueList
                         attrsetWithoutArgNames
                     );
                     recursiveOutputs = (builtins.foldl'
