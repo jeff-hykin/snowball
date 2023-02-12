@@ -281,13 +281,20 @@ let
                     recursiveOutputs = (builtins.foldl'
                         ({ alreadySeen, argsForPath, packageForPath }:
                             { name, value }:
-                                (getArgs {
-                                    obj = value;
-                                    alreadySeen = alreadySeen;
-                                    argsForPath = argsForPath;
-                                    packageForPath = packageForPath;
-                                    attributePathList = attributePathList ++ [ name ];
-                                })
+                                if (builtins.isAttrs value) then
+                                    (getArgs {
+                                        obj = value;
+                                        alreadySeen = alreadySeen;
+                                        argsForPath = argsForPath;
+                                        packageForPath = packageForPath;
+                                        attributePathList = attributePathList ++ [ name ];
+                                    })
+                                else
+                                    {
+                                        alreadySeen = alreadySeen;
+                                        argsForPath = argsForPath;
+                                        packageForPath = packageForPath;
+                                    }
                         )
                         {
                             alreadySeen = alreadySeen1;
