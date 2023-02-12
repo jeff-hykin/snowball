@@ -115,7 +115,15 @@ let
                     namesToSkipAttrset = (builtins.mapAttrs
                         (key: value:
                             let
-                                shouldBeRemoved = (doesContain {
+                                expressionWithPossibleError = value;
+                                result = (builtins.tryEval
+                                    (builtins.deepSeq
+                                        expressionWithPossibleError
+                                        expressionWithPossibleError
+                                    )
+                                );
+                                # if couldn't be evaluated, remove it
+                                shouldBeRemoved = !result.success || (doesContain {
                                     element = value;
                                     list = alreadySeen;
                                 });
@@ -316,3 +324,7 @@ let
 in
     getArgs
 
+
+# n = import <nixpkgs> {}
+# fromThem { obj = n.pythonPackages; }
+# fromThem { obj = { b = { numpy = "howdy"; }; }; }
