@@ -22,6 +22,13 @@ let
     # 
     # generic helpers
     # 
+        print = message: value: (builtins.trace
+            "\n${message}"            
+            (builtins.trace 
+                value
+                value
+            )
+        );
         doesContain = ({ list, element }:
             (builtins.any
                 (each: each == element)
@@ -108,7 +115,7 @@ let
                 # 
                 # dont explore new values
                 # 
-                    newNames = (builtins.attrNames
+                    newNames = print "newNames" (builtins.attrNames
                         obj
                     );
                     # { key1 = { name = key1; value = shouldBeRemoved}; key2 = { name = key2; value = shouldBeRemoved};  }
@@ -220,11 +227,11 @@ let
                         )
                         remainingNames
                     );
-                    attrsetWithOnlyArgNames = (builtins.removeAttrs
+                    attrsetWithOnlyArgNames = print "attrsetWithOnlyArgNames" (builtins.removeAttrs
                         remainingAttrsetToExplore
                         nonArgNonExploredNames
                     );
-                    attrsetWithoutArgNames = (builtins.removeAttrs
+                    attrsetWithoutArgNames = print "attrsetWithoutArgNames" (builtins.removeAttrs
                         remainingAttrsetToExplore
                         argNamesFiltered
                     );
@@ -328,3 +335,4 @@ in
 # n = import <nixpkgs> {}
 # fromThem { obj = n.pythonPackages; }
 # fromThem { obj = { b = { numpy = "howdy"; }; }; }
+# fromThem { obj = { b = { numpy = n.python3Packages.numpy; }; }; }
