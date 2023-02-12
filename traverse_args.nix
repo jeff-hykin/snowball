@@ -67,7 +67,7 @@ let
             (builtins.listToAttrs
                 (builtins.attrValues
                     (builtins.mapAttrs
-                        (key: value
+                        (key: value:
                             (function {
                                 name = key;
                                 value = value;
@@ -113,7 +113,7 @@ let
                     );
                     # { key1 = { name = key1; value = shouldBeRemoved}; key2 = { name = key2; value = shouldBeRemoved};  }
                     namesToSkipAttrset = (builtins.mapAttrs
-                        (key: value
+                        (key: value:
                             let
                                 shouldBeRemoved = (doesContain {
                                     element = value;
@@ -276,7 +276,7 @@ let
                 # handle recursion
                 # 
                     nameValueListOfUnexplored = (mapToNameValueList
-                        attrsetWithOnlyArgNames
+                        attrsetWithoutArgNames
                     );
                     recursiveOutputs = (builtins.foldl'
                         ({ alreadySeen, argsForPath, packageForPath }:
