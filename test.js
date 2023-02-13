@@ -7,12 +7,14 @@ import { createArgsFileFor, getCallPackagePaths, realParse, nodeAsJsonObject, no
 
 const _ = (await import('https://cdn.skypack.dev/lodash'))
 
+const postfix = "__args"
+
 // 
 // create args for all the default paths
 // 
 for (const eachPath of await FileSystem.listFilePathsIn("../nixpkgs", { recursively: true })) {
     if (FileSystem.basename(eachPath) == "default.nix") {
-        createArgsFileFor(eachPath)
+        createArgsFileFor(eachPath, postfix)
     }
 }
 
@@ -42,7 +44,7 @@ for (const [path, callPackageCount] of _.sortBy(Object.entries(callPackageFreque
     findTargetPromises.push(
         getCallPackagePaths(path).then(([ relativePath, fullPath, source ])=>{
             handleCreateArgsPromises.push(
-                createArgsFileFor(fullPath).then(success=>{
+                createArgsFileFor(fullPath, postfix).then(success=>{
                     if (success) {
                         return [relativePath, source]
                     }

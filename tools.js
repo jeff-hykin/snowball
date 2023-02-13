@@ -408,7 +408,7 @@ export async function bundle(path) {
     })
 }
 
-export async function createArgsFileFor(path) {
+export async function createArgsFileFor(path, postfix="__args") {
     let output
     try {
         output = echoInputs(path)
@@ -421,7 +421,7 @@ export async function createArgsFileFor(path) {
     } else {
         console.log(`processing: ${path}`)
         await FileSystem.write({
-            path: FileSystem.dirname(path)+`/${FileSystem.basename(path)}__args.nix`,
+            path: FileSystem.dirname(path)+`/${FileSystem.basename(path)}${postfix}.nix`,
             data: output,
         })
         return true
