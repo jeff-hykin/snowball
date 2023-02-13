@@ -432,22 +432,10 @@ export async function createArgsFileFor(path) {
 // await bundle("/Users/jeffhykin/repos/nixpkgs/lib/default.nix")
 // await format("./test.nix")
 // console.log(echoInputs("/Users/jeffhykin/repos/snowball/numpy.nix"))
-// console.log(JSON.stringify( nodeAsJsonObject(realParse(`
-// { lib
-// , fetchPypi
-// , fetchpatch
-// , python
-// , buildPythonPackage
-// , gfortran
-// , hypothesis
-// , pytest
-// , typing-extensions
-// , blas
-// , lapack
-// , writeTextFile
-// , cython
-// , pythonOlder
-// }:
-
-// assert (!blas.isILP64) && (!lapack.isILP64); 10;
-// `).rootNode),0,4))
+console.log(JSON.stringify( nodeAsJsonObject(realParse(`
+self: super: with self; {
+  numpy = callPackage ../development/python-modules/numpy { };
+  numpy_Args = callPackage ../development/python-modules/numpy/args.nix { };
+  gitsrht = self.callPackage ./git.nix { };
+}
+`).rootNode),0,4))
