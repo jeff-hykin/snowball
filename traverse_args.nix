@@ -4,6 +4,9 @@ let
     # 
         # will need to switch to a CLI/eval option for finding all non-error paths as BFS
         # then use geneated nix script to find when an attribute has already been evaluated
+        
+        # generate names until every "[name]_Args" has already been seen
+        # check off ones that args have been retrived for
     
     # 
     # helpers

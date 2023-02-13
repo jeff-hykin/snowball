@@ -51,7 +51,7 @@ for (const [path, callPackageCount] of _.sortBy(Object.entries(callPackageFreque
     )
 }
 await Promise.all(findTargetPromises)
-const replacements = await Promise.all(handleCreateArgsPromises) // looks dumb but I promise its valid
+const replacements = await Promise.all(handleCreateArgsPromises)
 const replacementMapping = {}
 for (let [ relativePath, source ] of replacements.filter(each=>each instanceof Array)) {
     replacementMapping[source] = {
