@@ -1,6 +1,6 @@
 - create full recursive cowsay snowball
     - DONE: bundle lib into one nix file
-    - search for every default.nix and every callPackage ./path
+    - `generate_postfix.js` search for every default.nix and every callPackage ./path
     - create an args.nix for each of them
     - find the corrisponding attribute being assigned to  import or callPackage ./path, and create another assignment below it with `[attr_name]_Args =` and then callPackage on the args path
     - make package-args.nix
@@ -30,7 +30,12 @@
         - constraints on any package-inputs
         - a list of inputs that caused all tests to pass
         - a system value that is fed-down to anything that needs system
-    - package discovery: recursively explore attributes (keep track of seen objects) and detect when something is a derivation (.type == "derivation")
+    - package discovery:
+        - recursively explore attributes (keep track of seen objects) and detect when something is a derivation (.type == "derivation")
+            - BFS exploration
+            - read in bad attribute paths from ENV var
+            - print the attribute path before exploring it
+            - external program keeps track of error states, adds "bad" paths to list
     - package conversion:
         - in the worse case: create a nix function that returns an attribute set (which will be a derivation)
             - do a hardcoded check on the existing derivation object for anything system related (__impureHostDeps, __darwinAllowLocalNetworking, __propagatedImpureHostDeps, stdenv, system, etc)
