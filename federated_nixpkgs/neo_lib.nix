@@ -1,9 +1,5 @@
 # no "with" allowed
 # no " or " allowed
-let 
-    zipListsWith' = fst: snd: null
-in
-    10
 # intentionally missing:
     # lib.release = lib.strings.fileContents ../.version;
     # lib.version = release + versionSuffix;
@@ -268,6 +264,32 @@ let
                 assert _'assertMsg (list != []) "lists.last: list must not be empty!";
                 builtins.elemAt list (builtins.length list - 1)
         );
+        _-sublist = (
+            # Index at which to start the sublist
+            start:
+            # Number of elements to take
+            count:
+            # Input list
+            list:
+                let
+                    len = builtins.length list;
+                in
+                    (builtins.genList
+                        (n: builtins.elemAt list (n + start))
+                        (
+                            if start >= len
+                            then
+                                0
+                            else if start + count > len
+                            then
+                                len - start
+                            else
+                                count
+                        )
+                    )
+        );
+    
+        _-take = count: _-sublist 0 count;
     
     
     # 
@@ -593,6 +615,37 @@ let
                 )
         );
         
+        #*# DIRTY env, ABORT, DIRTY trace
+        _-removePrefix = (
+            # Prefix to remove if it matches
+            prefix:
+            # Input string
+            str:
+                # Before 23.05, paths would be copied to the store before converting them
+                # to strings and comparing. This was surprising and confusing.
+                (_'warnIf
+                    (builtins.isPath prefix)
+                    ''
+                        lib.strings.removePrefix: The first argument (${builtins.toString prefix}) is a path value, but only strings are supported.
+                            There is almost certainly a bug in the calling code, since this function never removes any prefix in such a case.
+                            This function also copies the path to the Nix store, which may not be what you want.
+                            This behavior is deprecated and will throw an error in the future.
+                    ''
+                    (
+                        let
+                            preLen = builtins.stringLength prefix;
+                            sLen = builtins.stringLength str;
+                        in
+                            if builtins.substring 0 preLen str == prefix
+                            then
+                                builtins.substring preLen (sLen - preLen) str
+                            else
+                                str
+                    )
+                )
+        );
+        
+        #*# DIRTY env, ABORT, DIRTY trace
         _'removeSuffix =  (
             # Suffix to remove if it matches
             suffix:
@@ -712,7 +765,11 @@ let
                         (builtins.stringLength b)
                     )
         );
-        
+    
+    # 
+    # will be part of version
+    # 
+        _-splitVersion = if builtins ? splitVersion then builtins.splitVersion else (_-splitString ".");
     
     # 
     # lib/trivial.nix
@@ -1049,34 +1106,7 @@ let
         addContextFrom = _-addContextFrom;
         splitString = _-splitString;
         #*# DIRTY env, ABORT, DIRTY trace
-        removePrefix = (
-            # Prefix to remove if it matches
-            prefix:
-            # Input string
-            str:
-                # Before 23.05, paths would be copied to the store before converting them
-                # to strings and comparing. This was surprising and confusing.
-                (_'warnIf
-                    (builtins.isPath prefix)
-                    ''
-                        lib.strings.removePrefix: The first argument (${builtins.toString prefix}) is a path value, but only strings are supported.
-                            There is almost certainly a bug in the calling code, since this function never removes any prefix in such a case.
-                            This function also copies the path to the Nix store, which may not be what you want.
-                            This behavior is deprecated and will throw an error in the future.
-                    ''
-                    (
-                        let
-                            preLen = builtins.stringLength prefix;
-                            sLen = builtins.stringLength str;
-                        in
-                            if builtins.substring 0 preLen str == prefix
-                            then
-                                builtins.substring preLen (sLen - preLen) str
-                            else
-                                str
-                    )
-                )
-        );
+        removePrefix = _-removePrefix;
         
         #*# DIRTY env, ABORT, DIRTY trace
         removeSuffix = _'removeSuffix;
@@ -1395,6 +1425,33 @@ let
                             f
         );
     };
+    
+    _-versions = {
+        splitVersion = _-splitVersion;
+        major = v: builtins.elemAt (_-splitVersion v) 0;
+        minor = v: builtins.elemAt (_-splitVersion v) 1;
+        patch = v: builtins.elemAt (_-splitVersion v) 2;
+        majorMinor = v: _-concatStringsSep "." (_-take 2 (_-splitVersion v));  # MISTAKE: original used builtins.concatStringsSep instead of _-concatStringsSep
+        #*# DIRTY env, ABORT, DIRTY trace
+        pad = (
+            n: version:
+                let
+                    numericVersion = builtins.head (_-splitString "-" version);
+                    versionSuffix = _-removePrefix numericVersion version;
+                in
+                    (_-concatStringsSep
+                        "."
+                        ( 
+                            (_-take
+                                n
+                                (_-splitVersion
+                                    numericVersion ++ (builtins.genList (_: "0") n)
+                                )
+                            ) + versionSuffix
+                        )
+                    )
+        );
+    };
 in
     {
         minver = _-minver;
@@ -1402,4 +1459,5 @@ in
         zipIntBits = _-zipIntBits;
         trivial = _-trivial;
         string  = _-string;
+        versions  = _-versions;
     }
