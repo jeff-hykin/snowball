@@ -24,6 +24,13 @@
     #     release:
     #         release <= lib.trivial.oldestSupportedRelease;
     # lib.string.replaceChars = lib.warn "replaceChars is a deprecated alias of builtins.replaceStrings, replace usages of it with builtins.replaceStrings." builtins.replaceStrings;
+    # lib.stringsWithDeps # because of the warning it has, and because no packages use it. Like literally I can't find anything that uses any of this
+    # lib.stringsWithDeps.textClosureList
+    # lib.stringsWithDeps.textClosureMap
+    # lib.stringsWithDeps.noDepEntry
+    # lib.stringsWithDeps.fullDepEntry
+    # lib.stringsWithDeps.packEntry
+    # lib.stringsWithDeps.stringAfter
     
 
 let
@@ -290,6 +297,13 @@ let
         );
     
         _-take = count: _-sublist 0 count;
+        
+        #*# ASSERT, THROW
+        _-init = (
+            list:
+                assert _'assertMsg (list != []) "lists.init: list must not be empty!";
+                _-take (builtins.length list - 1) list
+        );
     
     
     # 
@@ -771,9 +785,153 @@ let
     # 
         _-splitVersion = if builtins ? splitVersion then builtins.splitVersion else (_-splitString ".");
     
+    
     # 
-    # lib/trivial.nix
+    # will be part of generators
     # 
+        #*# THROW, ASSERT
+        _'toPretty = (
+            {
+                /* If this option is true, attrsets like { __pretty = fn; val = …; }
+                will use fn to convert val to a pretty printed representation.
+                (This means fn is type Val -> String.) */
+                allowPrettyValues ? false,
+                /* If this option is true, the output is indented with newlines for attribute sets and lists */
+                multiline ? true,
+                /* Initial indentation level */
+                indent ? ""
+            }:
+                let
+                    go = indent: v:
+                        let
+                            isPath   = v: builtins.typeOf v == "path";
+                            introSpace = if multiline then "\n${indent}  " else " ";
+                            outroSpace = if multiline then "\n${indent}" else " ";
+                        in
+                            if builtins.isInt v
+                            then
+                                builtins.toString v
+                            # toString loses precision on floats, so we use toJSON instead. This isn't perfect
+                            # as the resulting string may not parse back as a float (e.g. 42, 1e-06), but for
+                            # pretty-printing purposes this is acceptable.
+                            else if builtins.isFloat v
+                            then
+                                builtins.toJSON v
+                            else if builtins.isString v
+                            then
+                                let
+                                    lines = builtins.filter (v: ! builtins.isList v) (builtins.split "\n" v);
+                                    escapeSingleline = _-escape [ "\\" "\"" "\${" ];
+                                    escapeMultiline = builtins.replaceStrings [ "\${" "''" ] [ "''\${" "'''" ];
+                                    singlelineResult = "\"" + _-concatStringsSep "\\n" (builtins.map escapeSingleline lines) + "\"";
+                                    multilineResult = (
+                                        let
+                                            escapedLines = builtins.map escapeMultiline lines;
+                                            # The last line gets a special treatment: if it's empty, '' is on its own line at the "outer"
+                                            # indentation level. Otherwise, '' is appended to the last line.
+                                            lastLine = _'last escapedLines;
+                                        in
+                                            "''" +
+                                            introSpace +
+                                            (_-concatStringsSep introSpace (_-init escapedLines)) +
+                                            (if lastLine == "" then outroSpace else introSpace + lastLine) + "''"
+                                    );
+                                in
+                                    if multiline && builtins.length lines > 1
+                                    then
+                                        multilineResult
+                                    else
+                                        singlelineResult
+                                    else if true  ==   v 
+                                    then
+                                        "true"
+                                    else if false ==   v 
+                                    then
+                                        "false"
+                                    else if null  ==   v 
+                                    then
+                                        "null"
+                                    else if builtins.isPath     v 
+                                    then
+                                        builtins.toString v
+                                    else if builtins.isList     v 
+                                    then
+                                        if v == []
+                                        then
+                                            "[ ]"
+                                        else
+                                            "[" + introSpace + (_-concatMapStringsSep introSpace (go (indent + "  ")) v) + outroSpace + "]"
+                                    else if builtins.isFunction v
+                                    then
+                                        let
+                                            fna = _-functionArgs v;
+                                            showFnas = (_-concatStringsSep
+                                                ", "
+                                                (_-mapAttrsToList
+                                                    (name: hasDefVal: if hasDefVal then name + "?" else name)
+                                                    fna
+                                                )
+                                            );
+                                        in
+                                            if fna == {}
+                                            then
+                                                "<function>"
+                                            else
+                                                "<function, args: {${showFnas}}>"
+                                    else if builtins.isAttrs v
+                                    then
+                                        # apply pretty values if allowed
+                                        if allowPrettyValues && v ? __pretty && v ? val
+                                        then
+                                            v.__pretty v.val
+                                        else if v == {}
+                                        then
+                                            "{ }"
+                                        else if v ? type && v.type == "derivation"
+                                        then
+                                            "<derivation ${v.name or "???"}>"
+                                        else
+                                            let
+                                                var1 = (_-mapAttrsToList
+                                                    (name: value:
+                                                        let
+                                                            innerValue = builtins.addErrorContext "while evaluating an attribute `${name}`" (go (indent + "  ") value);
+                                                        in
+                                                            "${_-escapeNixIdentifier name} = ${innerValue};"
+                                                    )
+                                                    v
+                                                );
+                                                content = (_-concatStringsSep
+                                                    introSpace
+                                                    var1
+                                                );
+                                            in 
+                                                "{" + introSpace + content + outroSpace + "}"
+                                    
+                                    else
+                                        builtins.abort "generators.toPretty: should never happen (v = ${v})";
+                in
+                    go indent
+        );
+    
+    _-asserts = {
+        #*# THROW
+        assertMsg = _'assertMsg;
+        #*# THROW
+        assertOneOf = (
+            # The name of the variable the user entered `val` into, for inclusion in the error message
+            name:
+            # The value of what the user provided, to be compared against the values in `xs`
+            val:
+            # The list of valid values
+            xs:
+                (_'assertMsg
+                    (builtins.elem val xs)
+                    "${name} must be one of ${_'toPretty {} xs}, but is: ${_'toPretty {} val}"
+                )
+        );
+    };
+    
     _-trivial = {
         isBool         = builtins.isBool;
         isInt          = builtins.isInt;
@@ -937,7 +1095,7 @@ let
         toHexString = _'toHexString;
     };
     
-    _-string = {
+    _-strings = {
         compareVersions            = builtins.compareVersions;
         elem                       = builtins.elem;
         elemAt                     = builtins.elemAt;
@@ -1458,6 +1616,7 @@ in
         asciiTable = _-asciiTable;
         zipIntBits = _-zipIntBits;
         trivial = _-trivial;
-        string  = _-string;
+        strings  = _-strings;
         versions  = _-versions;
+        asserts = _-asserts;
     }
