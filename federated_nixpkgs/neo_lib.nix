@@ -880,7 +880,7 @@ let
         toHexString = _'toHexString;
     };
     
-    _string = {
+    _-string = {
         compareVersions            = builtins.compareVersions;
         elem                       = builtins.elem;
         elemAt                     = builtins.elemAt;
@@ -1401,4 +1401,5 @@ in
         asciiTable = _-asciiTable;
         zipIntBits = _-zipIntBits;
         trivial = _-trivial;
+        string  = _-string;
     }
