@@ -230,14 +230,13 @@ async function* attrTreeIterator(workers) {
         )
     )
     branchesToExplore.push(root)
-    while (branchesToExplore.length > 0 || !workers.some(each=>each.isBusy)) {
-        console.log(`top of loop`)
+    while (branchesToExplore.length > 0 || workers.some(each=>each.isBusy)) {
         // wait for workers to add to que, or wait for workers to become available
         if (branchesToExplore.length == 0 || workers.every(each=>each.isBusy)) {
-            console.log(`waiting because:`)
-            console.debug(`    branchesToExplore.length is:`,branchesToExplore.length)
-            console.debug(`    workers.every(each=>each.isBusy) is:`,workers.every(each=>each.isBusy))
-            console.debug(`    workers.map(each=>each.isBusy) is:`,workers.map(each=>each.isBusy))
+            // console.log(`waiting because:`)
+            // console.debug(`    branchesToExplore.length is:`,branchesToExplore.length)
+            // console.debug(`    workers.every(each=>each.isBusy) is:`,workers.every(each=>each.isBusy))
+            // console.debug(`    workers.map(each=>each.isBusy) is:`,workers.map(each=>each.isBusy))
             await new Promise((resolve, reject)=>setTimeout(resolve, 100))
             continue
         }
@@ -248,12 +247,7 @@ async function* attrTreeIterator(workers) {
                 eachWorker.getAttrNames(currentNode.attrPath).then(
                     names=>{
                         console.debug(`names from worker${eachWorker.index} is:`,names)
-                        let count = 0
                         for (const attrName of names) {
-                            count++
-                            if ((count-1) % 300 == 0) {
-                                Deno.stdout.write(new TextEncoder().encode(`    scheduling: (${count}/${names.length}) ${attrName}\r`))
-                            }
                             branchesToExplore.push(
                                 currentNode.children[attrName] = new Node({
                                     attrName,
@@ -296,9 +290,9 @@ class Worker {
     async getAttrNames(attrList) {
         this.isBusy = true
         try {
-            console.log(`worker ${this.index} is working on a job`)
+            // console.log(`worker ${this.index} is working on a job`)
             const output = await getAttrNames(attrList, this.practicalRunNixCommand)
-            console.log(`worker ${this.index} is finished job`)
+            // console.log(`worker ${this.index} is finished job`)
             return output
         } finally {
             this.isBusy = false
@@ -307,7 +301,11 @@ class Worker {
 }
 
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-const workers = [...Array(20)].map(each=>new Worker(nixpkgsHash))
+const workers = [...Array(60)].map(each=>new Worker(nixpkgsHash))
+const startTime = (new Date()).getTime()
+let numberOfNodes = 0
 for await (const eachNode of attrTreeIterator(workers)) {
-    console.debug(`eachNode.attrPath is:`,eachNode.attrPath)
+    numberOfNodes ++ 
+    const currentTime = (new Date()).getTime()
+    console.debug(`ms per nodes: ${(currentTime-startTime)/numberOfNodes} eachNode.attrPath is:`,eachNode.attrPath)
 }
