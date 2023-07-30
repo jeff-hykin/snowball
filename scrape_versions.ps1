@@ -32,7 +32,7 @@ let numberOfNodes = 0
 // logging
     setInterval(() => {
         const currentTime = (new Date()).getTime()
-        Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`.replce(/(\d+)(\d\d\d)\b/g,"$1,$2")))
+        Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`.replace(/(\d+)(\d\d\d)\b/g,"$1,$2")))
     }, stdoutLogRate)
 
 // file writing
@@ -55,7 +55,7 @@ let numberOfNodes = 0
             stdoutLogRate = 2*((new Date()).getTime()-fileWriteStartTime)
             console.debug(`stdoutLogRate is now:`,stdoutLogRate)
         })
-    }, 12_000)
+    }, 120_000)
 
 
 /**
