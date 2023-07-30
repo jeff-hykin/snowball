@@ -6,7 +6,12 @@ import { FileSystem } from "https://deno.land/x/quickr@0.6.36/main/file_system.j
 import { Console, clearAnsiStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, strikethrough, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.6.36/main/console.js"
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString, regex, escapeRegexMatch, escapeRegexReplace, extractFirst, isValidIdentifier } from "https://deno.land/x/good@1.4.4.1/string.js"
 import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/binary_heap.js"
+import { zip } from "https://deno.land/x/good@1.4.4.1/array.js"
 
+// todo:
+    // attempt to switch to iterative deepening instead of uniform-cost-search (difficult to do DFS with parallelization)
+    // create a parallel process for grabbing node-info (version+name)
+    // create a static analysis task for listing all packages with literal names and versions, then try to cross reference
 
 // idea:
     // pull nixpkgs commit
@@ -136,14 +141,15 @@ var escapeNixString = (string)=>{
 /**
  * @example
  *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
- *     // [] 
+ *     // [ [], null ] 
  *     // non-attrset values return empty lists
  * 
  *     await getAttrNames("builtins", practicalRunNixCommand)
- *     // [ "abort", "add", "addErrorContext", ... ]
+ *     // got attrs but couldn't get 1-deeper attrs
+ *     // [ [ "abort", "add", "addErrorContext", ... ], null  ]
  *
  *     await getAttrNames(["builtins"], practicalRunNixCommand)
- *     // [ "abort", "add", "addErrorContext", ... ]
+ *     // [ [ "abort", "add", "addErrorContext", ... ], null ]
  *
  */
 async function getAttrNames(attrList, practicalRunNixCommand) {
@@ -156,19 +162,42 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
     } else {
         attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
     }
+    // try to get 2 levels of attribute names
     const command = `
         (builtins.trace
-            (
-                if
-                    (builtins.isAttrs (${attrString}))
-                then 
-                    (builtins.toJSON
-                        (builtins.attrNames
-                            (${attrString})
-                        )
-                    )
-                else
-                    (builtins.toJSON [])
+            (builtins.toJSON
+                (
+                    if
+                        (builtins.isAttrs (${attrString}))
+                    then 
+                        [
+                            (builtins.attrNames
+                                (${attrString})
+                            )
+                            (builtins.map
+                                (eachAttr:
+                                    (
+                                        let
+                                            value = (builtins.getAttr ${attrString} eachAttr);
+                                        in
+                                            if
+                                                (builtins.isAttrs value)
+                                            then 
+                                                (builtins.attrNames
+                                                    value
+                                                )
+                                            else
+                                                []
+                                    )
+                                )
+                                (builtins.attrNames
+                                    (${attrString})
+                                )
+                            )
+                        ]
+                    else
+                        [ [] null ]
+                )
             )
             null
         )
@@ -177,13 +206,38 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
     try {
         return JSON.parse(stderr.replace(/^trace: /,""))
     } catch (error) {
-        throw Error(`
-            getAttrNames failed under the following conditions:
-                attrList: ${indent({ string:  toRepresentation(attrList), by: "                ", noLead: true })}
-                command: ${indent({ string:  toRepresentation(command), by: "                ", noLead: true })}
-                stdout: ${indent({ string:  toRepresentation(stdout), by: "                ", noLead: true })}
-                stderr: ${indent({ string:  toRepresentation(stderr), by: "                ", noLead: true })}
-        `)
+        try {
+            const command = `
+                (builtins.trace
+                    (
+                        if
+                            (builtins.isAttrs (${attrString}))
+                        then 
+                            (builtins.toJSON
+                                (builtins.attrNames
+                                    (${attrString})
+                                )
+                            )
+                        else
+                            (builtins.toJSON [])
+                    )
+                    null
+                )
+            `
+            const { stdout, stderr } = await practicalRunNixCommand(command)
+            return [
+                JSON.parse(stderr.replace(/^trace: /,"")),
+                null
+            ]
+        } catch (error) {
+            throw Error(`
+                getAttrNames failed under the following conditions:
+                    attrList: ${indent({ string:  toRepresentation(attrList), by: "                ", noLead: true })}
+                    command: ${indent({ string:  toRepresentation(command), by: "                ", noLead: true })}
+                    stdout: ${indent({ string:  toRepresentation(stdout), by: "                ", noLead: true })}
+                    stderr: ${indent({ string:  toRepresentation(stderr), by: "                ", noLead: true })}
+            `)
+        }
     }
 }
 
@@ -194,7 +248,9 @@ class Node {
     depth = 0
     parent = null
     hitError = false
-    children = {}
+    isLeaf = null
+    hasVersionAttribute = null
+    hasNameAttribute = null
     constructor(values) {
         Object.assign(this, values)
         attrNameCount[this.attrName] = attrNameCount[this.attrName]+1 || 1
@@ -216,6 +272,9 @@ class Node {
             depth: this.depth,
             hitError: this.hitError,
             attrPath: this.attrPath,
+            isLeaf: this.isLeaf,
+            hasVersionAttribute: this.hasVersionAttribute,
+            hasNameAttribute: this.hasNameAttribute,
         }
     }
 }
@@ -256,15 +315,43 @@ async function* attrTreeIterator(workers) {
         for (const eachWorker of workers) {
             if (!eachWorker.isBusy) {
                 eachWorker.getAttrNames(currentNode.attrPath).then(
-                    names=>{
-                        for (const attrName of names) {
-                            branchesToExplore.push(
-                                currentNode.children[attrName] = new Node({
+                    ([names, subNames])=>{
+                        const subNamesWasComputed = subNames != null
+                        subNames = !subNamesWasComputed ? [] : subNames
+                        currentNode.isLeaf = names.length == 0
+                        currentNode.hasVersionAttribute = names.includes("version")
+                        currentNode.hasNameAttribute = names.includes("name")
+                        for (let [attrName, eachSubNames] of zip(names, subNames)) {
+                            eachSubNames = eachSubNames||[]
+
+                            // if we don't have access to the data, then wait for a later iteration
+                            if (!subNamesWasComputed) {
+                                branchesToExplore.push(
+                                    new Node({
+                                        attrName,
+                                        depth: currentNode.depth + 1,
+                                        parent: currentNode,
+                                        isLeaf: false,
+                                        hasVersionAttribute: eachSubNames.includes("version"),
+                                        hasNameAttribute: eachSubNames.includes("name"),
+                                    })
+                                )
+                            // if we were able to grab two levels, go ahead and process it
+                            } else {
+                                const node = new Node({
                                     attrName,
                                     depth: currentNode.depth + 1,
                                     parent: currentNode,
+                                    isLeaf: eachSubNames.length == 0,
+                                    hasVersionAttribute: eachSubNames.includes("version"),
+                                    hasNameAttribute: eachSubNames.includes("name"),
                                 })
-                            )
+                                shouldYield.push(node)
+                                // only add to the heap if its not a leaf
+                                if (!node.isLeaf) {
+                                    branchesToExplore.push(node)
+                                }
+                            }
                         }
                     }
                 ).catch(
@@ -309,7 +396,7 @@ class Worker {
     }
 }
 
-const stdoutLogRate = 500 // every __ miliseconds
+const stdoutLogRate = 200 // every __ miliseconds
 const nodeListOutputPath = "attr_tree.yaml"
 const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
@@ -332,6 +419,10 @@ setInterval(() => {
     const currentTime = (new Date()).getTime()
     Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
     file.write(new TextEncoder().encode(buffer))
+    FileSystem.write({
+        data: JSON.stringify(attrNameCount, 0, 4),
+        path: "attr_name_count.json",
+    })
     buffer = ""
 }, stdoutLogRate)
 
