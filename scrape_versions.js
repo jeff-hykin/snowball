@@ -217,13 +217,14 @@ class Node {
 }
 
 var rootNode
+var _binaryHeap
 async function* attrTreeIterator(workers) {
     const root = rootNode = new Node({
         attrName: `pkgs`,
         depth:0,
         parent: null,
     })
-    const branchesToExplore = new BinaryHeap(
+    const branchesToExplore = _binaryHeap = new BinaryHeap(
         // if a name is really common (ex: "out") it gets deprioritized heavily
         (a,b)=>ascend(
             attrNameCount[a.attrName]*a.depth,
@@ -303,15 +304,27 @@ var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
 const startTime = (new Date()).getTime()
 let numberOfNodes = 0
+
+// logging
 setInterval(() => {
     const currentTime = (new Date()).getTime()
-    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
+    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
 }, stdoutLogRate)
+
+// file writing
+let buffer = ""
 await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
 const file = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true})
 await file.seek(0, Deno.SeekMode.End)
+setInterval(() => {
+    const currentTime = (new Date()).getTime()
+    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
+    file.write(new TextEncoder().encode(buffer))
+    buffer = ""
+}, stdoutLogRate)
+
 for await (const eachNode of attrTreeIterator(workers)) {
     numberOfNodes ++ 
-    file.write(new TextEncoder().encode(`- ${JSON.stringify(eachNode)}\n`))
+    buffer += `- ${JSON.stringify(eachNode)}\n`
 }
 await file.close()
