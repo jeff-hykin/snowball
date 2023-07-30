@@ -1,12 +1,26 @@
 import { Denox } from "denox"
 
-// forgot about the whole imports-of-imports problem, and circular python/numpy kind of dependency
-    // could model numpy as a constraint on python
-    // could allow numpy to mutate python (or any package)
+// 1. create system constraints
+// 2. create a function that downloads/pulls-in pure inputs
+
+
+
+// PROBLEMS:
+    // shared-services (systemd services, but also sharing a .bashrc)
+        // must rethink the export system: how to create transational modifications of everything
+            // it must state what it contributes locally (what files/strings/bytes to export)
+                // binaries, lib files, models, etc
+            // it must state what it can contribute globally in a way where they can be denied or reversed
+                // changes to .bashrc
+                // home folder changes
+                // plugin support (e.g. desktop environment, apps)
+                // DNS changes
+    // imports-of-imports, the circular python/numpy kind of dependency
 
 // installer:
     // downloads deno
     // installs denox
+        // sets up home folder, looks for ipfs
     // (thats it)
 
 const autoInputs = Denox.readAutomatedInputs("package.json")

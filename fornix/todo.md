@@ -1,3 +1,7 @@
+- goal:
+    - packages can exist standalone without needing nixpkgs (no stdenv or)
+
+
 - create full recursive cowsay snowball
     - DONE: bundle lib into one nix file
     - `generate_postfix.js` search for every default.nix and every callPackage ./path

@@ -248,7 +248,26 @@
     # __magic__.stdenv.targetPlatform
     # __magic__.stdenv.type
     {
-        inputs = rec {
+        inputs = {
+            __magic__ = {}: builtins.import (builtins.fetchurl "https://raw.githubusercontent.com/jeff-hykin/snowball/master/default.nix");
+            python = {__magic__}: __magic__.package {
+                source="somewhere";
+                inputs={
+                    pipPackages={
+                        numpy=__magic__.package {
+                            source="somewhere";
+                            inputs={
+                                python=__magic__.package {
+                                    source="somewhere";
+                                    inputs={
+                                        pipPackages={};
+                                    };
+                                };
+                            };
+                        };
+                    };
+                }; 
+            };
             # 
             # values
             # 
