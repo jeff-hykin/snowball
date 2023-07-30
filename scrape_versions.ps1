@@ -32,7 +32,7 @@ let numberOfNodes = 0
 // logging
     setInterval(() => {
         const currentTime = (new Date()).getTime()
-        Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
+        Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`.replce(/(\d+)(\d\d\d)\b/g,"$1,$2")))
     }, stdoutLogRate)
 
 // file writing
@@ -46,22 +46,16 @@ let numberOfNodes = 0
     }, stdoutLogRate)
 
 // dumping stdoutLogRate
-    const dumpStdoutLogRate = debounce(
-        (event) => {
-            const fileWriteStartTime = (new Date()).getTime()
-            FileSystem.write({
-                data: JSON.stringify(attrNameCount, 0, 4),
-                path: "attr_name_count.json",
-            }).then(()=>{
-                stdoutLogRate = 2*((new Date()).getTime()-fileWriteStartTime)
-                console.debug(`stdoutLogRate is now:`,stdoutLogRate)
-            })
-        }
-        12_000,
-    )
-    setInterval(() => {
-        dumpStdoutLogRate()
-    }, stdoutLogRate)
+    setInterval(async () => {
+        const fileWriteStartTime = (new Date()).getTime()
+        await FileSystem.write({
+            data: JSON.stringify(attrNameCount, 0, 4),
+            path: "attr_name_count.json",
+        }).then(()=>{
+            stdoutLogRate = 2*((new Date()).getTime()-fileWriteStartTime)
+            console.debug(`stdoutLogRate is now:`,stdoutLogRate)
+        })
+    }, 12_000)
 
 
 /**
