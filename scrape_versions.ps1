@@ -236,6 +236,7 @@ async function* attrTreeIterator(workers) {
         )
     )
     branchesToExplore.push(root)
+    var shouldYield = []
     while (branchesToExplore.length > 0 || workers.some(each=>each.isBusy)) {
         // wait for workers to add to que, or wait for workers to become available
         if (branchesToExplore.length == 0 || workers.every(each=>each.isBusy)) {
@@ -246,6 +247,10 @@ async function* attrTreeIterator(workers) {
             await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
             continue
         }
+        for (const each of shouldYield) {
+            yield each
+        }
+        shouldYield.length = 0
         // assign some work
         const currentNode = branchesToExplore.pop()
         for (const eachWorker of workers) {
@@ -266,12 +271,15 @@ async function* attrTreeIterator(workers) {
                     error=>{
                         currentNode.hitError = `${error}`
                     }
+                ).finally(
+                    ()=>{
+                        shouldYield.push(currentNode)
+                    }
                 )
                 // only need one worker
                 break
             }
         }
-        yield currentNode
     }
 }
 
