@@ -7,6 +7,7 @@ import { Console, clearAnsiStylesFrom, black, white, red, green, blue, yellow, c
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString, regex, escapeRegexMatch, escapeRegexReplace, extractFirst, isValidIdentifier } from "https://deno.land/x/good@1.4.4.1/string.js"
 import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/binary_heap.js"
 import { zip } from "https://deno.land/x/good@1.4.4.1/array.js"
+import { debounce } from "https://deno.land/std@0.196.0/async/debounce.ts";
 
 // todo:
     // attempt to switch to iterative deepening instead of uniform-cost-search (difficult to do DFS with parallelization)
@@ -19,6 +20,49 @@ import { zip } from "https://deno.land/x/good@1.4.4.1/array.js"
     // then iterate till at least all static-analysis packages have been found
 
 const waitTime = 100 // miliections
+const attributesThatIndicateLeafPackage = ["outPath"] // "has any of these attributes" => children wont be searched
+let stdoutLogRate = 2000 // every __ miliseconds
+const nodeListOutputPath = "attr_tree.yaml"
+const numberOfParallelNixProcesses = 40
+var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
+const startTime = (new Date()).getTime()
+let numberOfNodes = 0
+
+
+// logging
+    setInterval(() => {
+        const currentTime = (new Date()).getTime()
+        Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
+    }, stdoutLogRate)
+
+// file writing
+    let buffer = ""
+    await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
+    const file = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true})
+    await file.seek(0, Deno.SeekMode.End)
+    setInterval(() => {
+        file.write(new TextEncoder().encode(buffer))
+        buffer = ""
+    }, stdoutLogRate)
+
+// dumping stdoutLogRate
+    const dumpStdoutLogRate = debounce(
+        (event) => {
+            const fileWriteStartTime = (new Date()).getTime()
+            FileSystem.write({
+                data: JSON.stringify(attrNameCount, 0, 4),
+                path: "attr_name_count.json",
+            }).then(()=>{
+                stdoutLogRate = 2*((new Date()).getTime()-fileWriteStartTime)
+                console.debug(`stdoutLogRate is now:`,stdoutLogRate)
+            })
+        }
+        12_000,
+    )
+    setInterval(() => {
+        dumpStdoutLogRate()
+    }, stdoutLogRate)
+
 
 /**
  * @example
@@ -254,6 +298,7 @@ class Node {
     constructor(values) {
         Object.assign(this, values)
         attrNameCount[this.attrName] = attrNameCount[this.attrName]+1 || 1
+        attrNameCount.pkgs = 1 // hardcoded edgecase
     }
     // this is a getter to help with memory usage
     get attrPath() {
@@ -281,7 +326,7 @@ class Node {
 
 var rootNode
 var _binaryHeap
-async function* attrTreeIterator(workers) {
+async function attrTreeIterator(workers) {
     const root = rootNode = new Node({
         attrName: `pkgs`,
         depth:0,
@@ -295,7 +340,6 @@ async function* attrTreeIterator(workers) {
         )
     )
     branchesToExplore.push(root)
-    var shouldYield = []
     while (branchesToExplore.length > 0 || workers.some(each=>each.isBusy)) {
         // wait for workers to add to que, or wait for workers to become available
         if (branchesToExplore.length == 0 || workers.every(each=>each.isBusy)) {
@@ -306,10 +350,6 @@ async function* attrTreeIterator(workers) {
             await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
             continue
         }
-        for (const each of shouldYield) {
-            yield each
-        }
-        shouldYield.length = 0
         // assign some work
         const currentNode = branchesToExplore.pop()
         for (const eachWorker of workers) {
@@ -331,25 +371,27 @@ async function* attrTreeIterator(workers) {
                                         attrName,
                                         depth: currentNode.depth + 1,
                                         parent: currentNode,
-                                        isLeaf: false,
+                                        isLeaf: null,
                                         hasVersionAttribute: eachSubNames.includes("version"),
                                         hasNameAttribute: eachSubNames.includes("name"),
                                     })
                                 )
                             // if we were able to grab two levels, go ahead and process it
                             } else {
-                                const node = new Node({
-                                    attrName,
-                                    depth: currentNode.depth + 1,
-                                    parent: currentNode,
-                                    isLeaf: eachSubNames.length == 0,
-                                    hasVersionAttribute: eachSubNames.includes("version"),
-                                    hasNameAttribute: eachSubNames.includes("name"),
-                                })
-                                shouldYield.push(node)
+                                buffer += `- { attrName: ${attrName},  depth: ${currentNode.depth + 1}, isLeaf: ${eachSubNames.length == 0}, hasVersionAttribute: ${eachSubNames.includes("version")}, hasNameAttribute: ${eachSubNames.includes("name")}, }\n`
+                                numberOfNodes+=1
                                 // only add to the heap if its not a leaf
-                                if (!node.isLeaf) {
-                                    branchesToExplore.push(node)
+                                if (!eachSubNames.length == 0 && !attributesThatIndicateLeafPackage.some(each=>eachSubNames.includes(each))) {
+                                    branchesToExplore.push(
+                                        new Node({
+                                            attrName,
+                                            depth: currentNode.depth + 1,
+                                            parent: currentNode,
+                                            isLeaf: eachSubNames.length == 0,
+                                            hasVersionAttribute: eachSubNames.includes("version"),
+                                            hasNameAttribute: eachSubNames.includes("name"),
+                                        })
+                                    )
                                 }
                             }
                         }
@@ -360,7 +402,8 @@ async function* attrTreeIterator(workers) {
                     }
                 ).finally(
                     ()=>{
-                        shouldYield.push(currentNode)
+                        buffer += `- ${JSON.stringify(currentNode)}\n`
+                        numberOfNodes++
                     }
                 )
                 // only need one worker
@@ -396,39 +439,8 @@ class Worker {
     }
 }
 
-const stdoutLogRate = 200 // every __ miliseconds
-const nodeListOutputPath = "attr_tree.yaml"
-const numberOfParallelNixProcesses = 40
-var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
+
 const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
-const startTime = (new Date()).getTime()
-let numberOfNodes = 0
-
-// logging
-setInterval(() => {
-    const currentTime = (new Date()).getTime()
-    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
-}, stdoutLogRate)
-
-// file writing
-let buffer = ""
-await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
-const file = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true})
-await file.seek(0, Deno.SeekMode.End)
-setInterval(() => {
-    const currentTime = (new Date()).getTime()
-    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
-    file.write(new TextEncoder().encode(buffer))
-    FileSystem.write({
-        data: JSON.stringify(attrNameCount, 0, 4),
-        path: "attr_name_count.json",
-    })
-    buffer = ""
-}, stdoutLogRate)
-
-for await (const eachNode of attrTreeIterator(workers)) {
-    numberOfNodes ++ 
-    buffer += `- ${JSON.stringify(eachNode)}\n`
-}
+await attrTreeIterator(workers)
 await file.close()
 // (this comment is part of deno-guillotine, dont remove) #>
