@@ -21,6 +21,8 @@ import { debounce } from "https://deno.land/std@0.196.0/async/debounce.ts";
 
 const waitTime = 100 // miliections
 const attributesThatIndicateLeafPackage = ["outPath", "AAAAAASomeThingsFailToEvaluate"] // "has any of these attributes" => children wont be searched
+                                                                                        // NOTE! this causes problems, because of course it does
+                                                                                        // perl is both a package and has ".pkgs" which are pacakges
 let stdoutLogRate = 2000 // every __ miliseconds
 const nodeListOutputPath = "attr_tree.yaml"
 const numberOfParallelNixProcesses = 40
@@ -325,6 +327,7 @@ async function attrTreeIterator(workers) {
     )
     branchesToExplore.push(root)
     while (branchesToExplore.length > 0 || workers.some(each=>each.isBusy)) {
+        // break up when workers start to prevent waves
         // wait for workers to add to que, or wait for workers to become available
         if (branchesToExplore.length == 0 || workers.every(each=>each.isBusy)) {
             // console.log(`waiting because:`)
@@ -335,15 +338,8 @@ async function attrTreeIterator(workers) {
             continue
         }
         // assign some work
-
-        const startTime = (new Date()).getTime()
-        
         const currentNode = branchesToExplore.pop()
         
-        const endTime = (new Date()).getTime()
-        const duration = endTime - startTime
-        console.log(`pop took ${duration}ms`)
-
         for (const eachWorker of workers) {
             if (!eachWorker.isBusy) {
                 eachWorker.getAttrNames(currentNode.attrPath).then(
@@ -422,17 +418,23 @@ class Worker {
         this.index = Worker.all.length
         console.log(`worker${this.index} created`)
         Worker.all.push(this)
+        this.iterations = 0
     }
     async getAttrNames(attrList) {
         this.isBusy = true
+        this.iterations++
+        // refresh the nix repl every so often
+        if (this.iterations % 50 == 0) {
+            // close the existing nix repl
+            this.send(":q")
+            // create a new one
+            Object.assign(this, createNixCommandRunner(nixpkgsHash))
+            await this.send(`pkgs = import <nixpkgs> {}`)
+        }
         try {
-            const startTime = (new Date()).getTime()
             
             // console.log(`worker ${this.index} is working on a job`)
             const output = await getAttrNames(attrList, this.practicalRunNixCommand)
-            const endTime = (new Date()).getTime()
-            const duration = endTime - startTime
-            console.log(`worker took ${duration}ms`)
             // console.log(`worker ${this.index} is finished job`)
             return output
         } finally {
