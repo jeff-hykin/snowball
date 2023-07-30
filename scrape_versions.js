@@ -1,5 +1,13 @@
+import { FileSystem } from "https://deno.land/x/quickr@0.6.36/main/file_system.js"
 import { Console, clearAnsiStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, strikethrough, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.6.36/main/console.js"
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString, regex, escapeRegexMatch, escapeRegexReplace, extractFirst, isValidIdentifier } from "https://deno.land/x/good@1.4.4.1/string.js"
+import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/binary_heap.js"
+
+
+// idea:
+    // pull nixpkgs commit
+    // use static analysis to find the quantity of packages (look for attrsets with version and name attribute)
+    // then iterate till at least all static-analysis packages have been found
 
 /**
  * @example
@@ -143,7 +151,7 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
     } else {
         attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
     }
-    const { stdout, stderr } = await practicalRunNixCommand(`
+    const command = `
         (builtins.trace
             (
                 if
@@ -159,44 +167,147 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
             )
             null
         )
-    `.replace(/[\n ]+/, " "))
-    return JSON.parse(stderr.replace(/^trace: /,""))
+    `
+    const { stdout, stderr } = await practicalRunNixCommand(command)
+    try {
+        return JSON.parse(stderr.replace(/^trace: /,""))
+    } catch (error) {
+        throw Error(`
+            getAttrNames failed under the following conditions:
+                attrList: ${indent({ string:  toRepresentation(attrList), by: "                ", noLead: true })}
+                command: ${indent({ string:  toRepresentation(command), by: "                ", noLead: true })}
+                stdout: ${indent({ string:  toRepresentation(stdout), by: "                ", noLead: true })}
+                stderr: ${indent({ string:  toRepresentation(stderr), by: "                ", noLead: true })}
+        `)
+    }
 }
 
+const attrNameCount = {}
+class Node {
+    packageId = undefined
+    attrName = ""
+    depth = 0
+    parent = null
+    hitError = false
+    children = {}
+    constructor(values) {
+        Object.assign(this, values)
+        attrNameCount[this.attrName] = attrNameCount[this.attrName]+1 || 1
+    }
+    // this is a getter to help with memory usage
+    get attrPath() {
+        let parent = this.parent
+        const attrPath = [ this.attrName ]
+        while (parent) {
+            attrPath.push(parent.attrName)
+            parent = parent.parent
+        }
+        return attrPath.reverse()
+    }
+    toJSON() {
+        return {
+            packageId: this.packageId,
+            attrName: this.attrName,
+            depth: this.depth,
+            hitError: this.hitError,
+            attrPath: this.attrPath,
+            children: this.children,
+        }
+    }
+}
 
-async function buildAttrTree(nixpkgsHash, treePath) {
-    var { runNixCommand, practicalRunNixCommand, send, write } = createNixCommandRunner(nixpkgsHash)
-    // intentionally dont await
-    send(`pkgs = import <nixpkgs> {}`)
-    
-    
+async function* attrTreeIterator(workers) {
+    const root = new Node({
+        attrName: `pkgs`,
+        depth:0,
+        parent: null,
+    })
+    const branchesToExplore = new BinaryHeap(
+        // if a name is really common (ex: "out") it gets deprioritized heavily
+        (a,b)=>ascend(
+            attrNameCount[a.attrName]*a.depth,
+            attrNameCount[b.attrName]*b.depth,
+        )
+    )
+    branchesToExplore.push(root)
+    while (branchesToExplore.length > 0 || !workers.some(each=>each.isBusy)) {
+        console.log(`top of loop`)
+        // wait for workers to add to que, or wait for workers to become available
+        if (branchesToExplore.length == 0 || workers.every(each=>each.isBusy)) {
+            console.log(`waiting because:`)
+            console.debug(`    branchesToExplore.length is:`,branchesToExplore.length)
+            console.debug(`    workers.every(each=>each.isBusy) is:`,workers.every(each=>each.isBusy))
+            console.debug(`    workers.map(each=>each.isBusy) is:`,workers.map(each=>each.isBusy))
+            await new Promise((resolve, reject)=>setTimeout(resolve, 100))
+            continue
+        }
+        // assign some work
+        const currentNode = branchesToExplore.pop()
+        for (const eachWorker of workers) {
+            if (!eachWorker.isBusy) {
+                eachWorker.getAttrNames(currentNode.attrPath).then(
+                    names=>{
+                        console.debug(`names from worker${eachWorker.index} is:`,names)
+                        let count = 0
+                        for (const attrName of names) {
+                            count++
+                            if ((count-1) % 300 == 0) {
+                                Deno.stdout.write(new TextEncoder().encode(`    scheduling: (${count}/${names.length}) ${attrName}\r`))
+                            }
+                            branchesToExplore.push(
+                                currentNode.children[attrName] = new Node({
+                                    attrName,
+                                    depth: currentNode.depth + 1,
+                                    parent: currentNode,
+                                })
+                            )
+                        }
+                    }
+                ).catch(
+                    error=>{
+                        currentNode.hitError = `${error}`
+                    }
+                )
+                // only need one worker
+                break
+            }
+        }
+        yield currentNode
+        // FileSystem.write({
+        //     data: JSON.stringify(root,0,4),
+        //     path: "attr_tree.json",
+        // })
+    }
+}
+
+class Worker {
+    static all = []
+    constructor(nixpkgsHash) {
+        this.isBusy = true
+        Object.assign(this, createNixCommandRunner(nixpkgsHash))
+        this.send(`pkgs = import <nixpkgs> {}`).then(()=>{
+            this.isBusy = false
+            console.log(`worker${this.index} has initalized`)
+        })
+        this.index = Worker.all.length
+        console.log(`worker${this.index} created`)
+        Worker.all.push(this)
+    }
+    async getAttrNames(attrList) {
+        this.isBusy = true
+        try {
+            console.log(`worker ${this.index} is working on a job`)
+            const output = await getAttrNames(attrList, this.practicalRunNixCommand)
+            console.log(`worker ${this.index} is finished job`)
+            return output
+        } finally {
+            this.isBusy = false
+        }
+    }
 }
 
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-var { runNixCommand, practicalRunNixCommand, send, write } = createNixCommandRunner(nixpkgsHash)
-getAttrNames("builtins", practicalRunNixCommand)
-
-
-var a = await practicalRunNixCommand(`builtins.trace "im in stderr" 10`)
-
-
-
-
-await write("10\n")
-    clearAnsiStylesFrom(grabStdout())
-
-    await send`pkgs = import <nixpkgs> {}`
-    clearAnsiStylesFrom(grabStdout())
-    grabStderr()
-
-
-    var bigRandomInt = `${Math.random()}`.replace(".","").replace(/^0*/,"")
-    await send(`builtins.trace "" ${bigRandomInt}`)
-    await send(`builtins.trace (builtins.toJSON (builtins.attrNames (pkgs))) ${bigRandomInt}`)
-    clearAnsiStylesFrom(grabStdout())
-    var data = grabStderr()
-    var probablyJsonData = data.replace(/^[\w\W]*?trace: /,"")
-    var packageData = JSON.parse(probablyJsonData)
-
-
-buildAttrTree()
+const workers = [...Array(20)].map(each=>new Worker(nixpkgsHash))
+for await (const eachNode of attrTreeIterator(workers)) {
+    console.debug(`eachNode.attrPath is:`,eachNode.attrPath)
+}
