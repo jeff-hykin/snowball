@@ -9,6 +9,8 @@ import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/bi
     // use static analysis to find the quantity of packages (look for attrsets with version and name attribute)
     // then iterate till at least all static-analysis packages have been found
 
+const waitTime = 100 // miliections
+
 /**
  * @example
  *     var { runNixCommand, practicalRunNixCommand, send, write } = createNixCommandRunner(`aa0e8072a57e879073cee969a780e586dbe57997`)
@@ -93,8 +95,6 @@ function createNixCommandRunner(nixpkgsHash) {
             while (true) {
                 const stdoutIsDone = stdoutText.match(fullMessagePattern)
                 const stderrIsDone = stderrText.match(fullMessagePattern)
-                // sleep for debugging
-                await new Promise((resolve, reject)=>setTimeout(resolve, 1000))
                 if (stdoutIsDone && stderrIsDone) {
                     break
                 }
@@ -104,6 +104,7 @@ function createNixCommandRunner(nixpkgsHash) {
                 if (!stderrIsDone) {
                     stderrText += grabStderr()
                 }
+                await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
             }
             return {
                 stdout: stdoutText.replace(fullMessagePatternStdout, "$1"),
@@ -211,13 +212,13 @@ class Node {
             depth: this.depth,
             hitError: this.hitError,
             attrPath: this.attrPath,
-            children: this.children,
         }
     }
 }
 
+var rootNode
 async function* attrTreeIterator(workers) {
-    const root = new Node({
+    const root = rootNode = new Node({
         attrName: `pkgs`,
         depth:0,
         parent: null,
@@ -237,7 +238,7 @@ async function* attrTreeIterator(workers) {
             // console.debug(`    branchesToExplore.length is:`,branchesToExplore.length)
             // console.debug(`    workers.every(each=>each.isBusy) is:`,workers.every(each=>each.isBusy))
             // console.debug(`    workers.map(each=>each.isBusy) is:`,workers.map(each=>each.isBusy))
-            await new Promise((resolve, reject)=>setTimeout(resolve, 100))
+            await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
             continue
         }
         // assign some work
@@ -246,7 +247,6 @@ async function* attrTreeIterator(workers) {
             if (!eachWorker.isBusy) {
                 eachWorker.getAttrNames(currentNode.attrPath).then(
                     names=>{
-                        console.debug(`names from worker${eachWorker.index} is:`,names)
                         for (const attrName of names) {
                             branchesToExplore.push(
                                 currentNode.children[attrName] = new Node({
@@ -267,10 +267,6 @@ async function* attrTreeIterator(workers) {
             }
         }
         yield currentNode
-        // FileSystem.write({
-        //     data: JSON.stringify(root,0,4),
-        //     path: "attr_tree.json",
-        // })
     }
 }
 
@@ -300,12 +296,22 @@ class Worker {
     }
 }
 
+const stdoutLogRate = 500 // every __ miliseconds
+const nodeListOutputPath = "attr_tree.yaml"
+const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-const workers = [...Array(60)].map(each=>new Worker(nixpkgsHash))
+const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
 const startTime = (new Date()).getTime()
 let numberOfNodes = 0
+setInterval(() => {
+    const currentTime = (new Date()).getTime()
+    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
+}, stdoutLogRate)
+await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
+const file = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true})
+await file.seek(0, Deno.SeekMode.End)
 for await (const eachNode of attrTreeIterator(workers)) {
     numberOfNodes ++ 
-    const currentTime = (new Date()).getTime()
-    console.debug(`ms per nodes: ${(currentTime-startTime)/numberOfNodes} eachNode.attrPath is:`,eachNode.attrPath)
+    file.write(new TextEncoder().encode(`- ${JSON.stringify(eachNode)}\n`))
 }
+await file.close()
