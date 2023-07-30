@@ -120,6 +120,19 @@ var escapeNixString = (string)=>{
     return `"${string.replace(/\$\{|[\\"]/g, '\\$&').replace(/\u0000/g, '\\0')}"`
 }
 
+/**
+ * @example
+ *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
+ *     // [] 
+ *     // non-attrset values return empty lists
+ * 
+ *     await getAttrNames("builtins", practicalRunNixCommand)
+ *     // [ "abort", "add", "addErrorContext", ... ]
+ *
+ *     await getAttrNames(["builtins"], practicalRunNixCommand)
+ *     // [ "abort", "add", "addErrorContext", ... ]
+ *
+ */
 async function getAttrNames(attrList, practicalRunNixCommand) {
     if (typeof attrList == 'string') {
         attrList = [attrList]
@@ -128,7 +141,7 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
     if (attrList.length == 1) {
         attrString = attrList[0]
     } else {
-        attrString = attrList[0]+"."+attrList.map(escapeNixString)
+        attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
     }
     const { stdout, stderr } = await practicalRunNixCommand(`
         (builtins.trace
