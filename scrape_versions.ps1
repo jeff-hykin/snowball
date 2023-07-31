@@ -21,12 +21,12 @@ import { debounce } from "https://deno.land/std@0.196.0/async/debounce.ts";
     // then iterate till at least all static-analysis packages have been found
 
 const waitTime = 100 // miliections
-const attributesThatIndicateLeafPackage = ["outPath", "AAAAAASomeThingsFailToEvaluate"] // "has any of these attributes" => children wont be searched
+const attributesThatIndicateLeafPackage = ["AAAAAASomeThingsFailToEvaluate"] // "has any of these attributes" => children wont be searched
                                                                                         // NOTE! this causes problems, because of course it does
                                                                                         // perl is both a package and has ".pkgs" which are pacakges
 let stdoutLogRate = 2000 // every __ miliseconds
 const nodeListOutputPath = "attr_tree.yaml"
-const numberOfParallelNixProcesses = 80
+const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const startTime = (new Date()).getTime()
 let numberOfNodes = 0
