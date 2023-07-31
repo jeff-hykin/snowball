@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 "\"",`$(echo --% ' |out-null)" >$null;function :{};function dv{<#${/*'>/dev/null )` 2>/dev/null;dv() { #>
-echo "1.35.3"; : --% ' |out-null <#'; }; version="$(dv)"; deno="$HOME/.deno/$version/bin/deno"; if [ -x "$deno" ]; then  exec "$deno" run -q -A --inspect-brk --v8-flags=--max-old-space-size=32000 "$0" "$@";  elif [ -f "$deno" ]; then  chmod +x "$deno" && exec "$deno" run -q --inspect-brk --v8-flags=--max-old-space-size=32000 -A "$0" "$@";  fi; bin_dir="$HOME/.deno/$version/bin"; exe="$bin_dir/deno"; has () { command -v "$1" >/dev/null; } ;  if ! has unzip; then if ! has apt-get; then  has brew && brew install unzip; else  if [ "$(whoami)" = "root" ]; then  apt-get install unzip -y; elif has sudo; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  sudo apt-get install unzip -y; fi; elif has doas; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  doas apt-get install unzip -y; fi; fi;  fi;  fi;  if ! has unzip; then  echo ""; echo "So I couldn't find an 'unzip' command"; echo "And I tried to auto install it, but it seems that failed"; echo "(This script needs unzip and either curl or wget)"; echo "Please install the unzip command manually then re-run this script"; exit 1;  fi;  repo="denoland/deno"; if [ "$OS" = "Windows_NT" ]; then target="x86_64-pc-windows-msvc"; else :;  case $(uname -sm) in "Darwin x86_64") target="x86_64-apple-darwin" ;; "Darwin arm64") target="aarch64-apple-darwin" ;; "Linux aarch64") repo="LukeChannings/deno-arm64" target="linux-arm64" ;; "Linux armhf") echo "deno sadly doesn't support 32-bit ARM. Please check your hardware and possibly install a 64-bit operating system." exit 1 ;; *) target="x86_64-unknown-linux-gnu" ;; esac; fi; deno_uri="https://github.com/$repo/releases/download/v$version/deno-$target.zip"; exe="$bin_dir/deno"; if [ ! -d "$bin_dir" ]; then mkdir -p "$bin_dir"; fi;  if ! curl --fail --location --progress-bar --output "$exe.zip" "$deno_uri"; then if ! wget --output-document="$exe.zip" "$deno_uri"; then echo "Howdy! I looked for the 'curl' and for 'wget' commands but I didn't see either of them. Please install one of them, otherwise I have no way to install the missing deno version needed to run this code"; exit 1; fi; fi; unzip -d "$bin_dir" -o "$exe.zip"; chmod +x "$exe"; rm "$exe.zip"; exec "$deno" run -q --inspect-brk --v8-flags=--max-old-space-size=32000 -A "$0" "$@"; #>}; $DenoInstall = "${HOME}/.deno/$(dv)"; $BinDir = "$DenoInstall/bin"; $DenoExe = "$BinDir/deno.exe"; if (-not(Test-Path -Path "$DenoExe" -PathType Leaf)) { $DenoZip = "$BinDir/deno.zip"; $DenoUri = "https://github.com/denoland/deno/releases/download/v$(dv)/deno-x86_64-pc-windows-msvc.zip";  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;  if (!(Test-Path $BinDir)) { New-Item $BinDir -ItemType Directory | Out-Null; };  Function Test-CommandExists { Param ($command); $oldPreference = $ErrorActionPreference; $ErrorActionPreference = "stop"; try {if(Get-Command "$command"){RETURN $true}} Catch {Write-Host "$command does not exist"; RETURN $false}; Finally {$ErrorActionPreference=$oldPreference}; };  if (Test-CommandExists curl) { curl -Lo $DenoZip $DenoUri; } else { curl.exe -Lo $DenoZip $DenoUri; };  if (Test-CommandExists curl) { tar xf $DenoZip -C $BinDir; } else { tar -Lo $DenoZip $DenoUri; };  Remove-Item $DenoZip;  $User = [EnvironmentVariableTarget]::User; $Path = [Environment]::GetEnvironmentVariable('Path', $User); if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) { [Environment]::SetEnvironmentVariable('Path', "$Path;$BinDir", $User); $Env:Path += ";$BinDir"; } }; & "$DenoExe" run -q --inspect-brk --v8-flags=--max-old-space-size=32000 -A "$PSCommandPath" @args; Exit $LastExitCode; <# 
+echo "1.35.3"; : --% ' |out-null <#'; }; version="$(dv)"; deno="$HOME/.deno/$version/bin/deno"; if [ -x "$deno" ]; then  exec "$deno" run -q -A --v8-flags=--max-old-space-size=32000 "$0" "$@";  elif [ -f "$deno" ]; then  chmod +x "$deno" && exec "$deno" run -q --v8-flags=--max-old-space-size=32000 -A "$0" "$@";  fi; bin_dir="$HOME/.deno/$version/bin"; exe="$bin_dir/deno"; has () { command -v "$1" >/dev/null; } ;  if ! has unzip; then if ! has apt-get; then  has brew && brew install unzip; else  if [ "$(whoami)" = "root" ]; then  apt-get install unzip -y; elif has sudo; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  sudo apt-get install unzip -y; fi; elif has doas; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  doas apt-get install unzip -y; fi; fi;  fi;  fi;  if ! has unzip; then  echo ""; echo "So I couldn't find an 'unzip' command"; echo "And I tried to auto install it, but it seems that failed"; echo "(This script needs unzip and either curl or wget)"; echo "Please install the unzip command manually then re-run this script"; exit 1;  fi;  repo="denoland/deno"; if [ "$OS" = "Windows_NT" ]; then target="x86_64-pc-windows-msvc"; else :;  case $(uname -sm) in "Darwin x86_64") target="x86_64-apple-darwin" ;; "Darwin arm64") target="aarch64-apple-darwin" ;; "Linux aarch64") repo="LukeChannings/deno-arm64" target="linux-arm64" ;; "Linux armhf") echo "deno sadly doesn't support 32-bit ARM. Please check your hardware and possibly install a 64-bit operating system." exit 1 ;; *) target="x86_64-unknown-linux-gnu" ;; esac; fi; deno_uri="https://github.com/$repo/releases/download/v$version/deno-$target.zip"; exe="$bin_dir/deno"; if [ ! -d "$bin_dir" ]; then mkdir -p "$bin_dir"; fi;  if ! curl --fail --location --progress-bar --output "$exe.zip" "$deno_uri"; then if ! wget --output-document="$exe.zip" "$deno_uri"; then echo "Howdy! I looked for the 'curl' and for 'wget' commands but I didn't see either of them. Please install one of them, otherwise I have no way to install the missing deno version needed to run this code"; exit 1; fi; fi; unzip -d "$bin_dir" -o "$exe.zip"; chmod +x "$exe"; rm "$exe.zip"; exec "$deno" run -q --v8-flags=--max-old-space-size=32000 -A "$0" "$@"; #>}; $DenoInstall = "${HOME}/.deno/$(dv)"; $BinDir = "$DenoInstall/bin"; $DenoExe = "$BinDir/deno.exe"; if (-not(Test-Path -Path "$DenoExe" -PathType Leaf)) { $DenoZip = "$BinDir/deno.zip"; $DenoUri = "https://github.com/denoland/deno/releases/download/v$(dv)/deno-x86_64-pc-windows-msvc.zip";  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;  if (!(Test-Path $BinDir)) { New-Item $BinDir -ItemType Directory | Out-Null; };  Function Test-CommandExists { Param ($command); $oldPreference = $ErrorActionPreference; $ErrorActionPreference = "stop"; try {if(Get-Command "$command"){RETURN $true}} Catch {Write-Host "$command does not exist"; RETURN $false}; Finally {$ErrorActionPreference=$oldPreference}; };  if (Test-CommandExists curl) { curl -Lo $DenoZip $DenoUri; } else { curl.exe -Lo $DenoZip $DenoUri; };  if (Test-CommandExists curl) { tar xf $DenoZip -C $BinDir; } else { tar -Lo $DenoZip $DenoUri; };  Remove-Item $DenoZip;  $User = [EnvironmentVariableTarget]::User; $Path = [Environment]::GetEnvironmentVariable('Path', $User); if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) { [Environment]::SetEnvironmentVariable('Path', "$Path;$BinDir", $User); $Env:Path += ";$BinDir"; } }; & "$DenoExe" run -q --v8-flags=--max-old-space-size=32000 -A "$PSCommandPath" @args; Exit $LastExitCode; <# 
 # */0}`;
-// echo "1.35.3"; : --% ' |out-null <#'; }; version="$(dv)"; deno="$HOME/.deno/$version/bin/deno"; if [ -x "$deno" ]; then  exec "$deno" run -q -A --v8-flags=--max-old-space-size=32000 "$0" "$@";  elif [ -f "$deno" ]; then  chmod +x "$deno" && exec "$deno" run -q --v8-flags=--max-old-space-size=32000 -A "$0" "$@";  fi; bin_dir="$HOME/.deno/$version/bin"; exe="$bin_dir/deno"; has () { command -v "$1" >/dev/null; } ;  if ! has unzip; then if ! has apt-get; then  has brew && brew install unzip; else  if [ "$(whoami)" = "root" ]; then  apt-get install unzip -y; elif has sudo; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  sudo apt-get install unzip -y; fi; elif has doas; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  doas apt-get install unzip -y; fi; fi;  fi;  fi;  if ! has unzip; then  echo ""; echo "So I couldn't find an 'unzip' command"; echo "And I tried to auto install it, but it seems that failed"; echo "(This script needs unzip and either curl or wget)"; echo "Please install the unzip command manually then re-run this script"; exit 1;  fi;  repo="denoland/deno"; if [ "$OS" = "Windows_NT" ]; then target="x86_64-pc-windows-msvc"; else :;  case $(uname -sm) in "Darwin x86_64") target="x86_64-apple-darwin" ;; "Darwin arm64") target="aarch64-apple-darwin" ;; "Linux aarch64") repo="LukeChannings/deno-arm64" target="linux-arm64" ;; "Linux armhf") echo "deno sadly doesn't support 32-bit ARM. Please check your hardware and possibly install a 64-bit operating system." exit 1 ;; *) target="x86_64-unknown-linux-gnu" ;; esac; fi; deno_uri="https://github.com/$repo/releases/download/v$version/deno-$target.zip"; exe="$bin_dir/deno"; if [ ! -d "$bin_dir" ]; then mkdir -p "$bin_dir"; fi;  if ! curl --fail --location --progress-bar --output "$exe.zip" "$deno_uri"; then if ! wget --output-document="$exe.zip" "$deno_uri"; then echo "Howdy! I looked for the 'curl' and for 'wget' commands but I didn't see either of them. Please install one of them, otherwise I have no way to install the missing deno version needed to run this code"; exit 1; fi; fi; unzip -d "$bin_dir" -o "$exe.zip"; chmod +x "$exe"; rm "$exe.zip"; exec "$deno" run -q --v8-flags=--max-old-space-size=32000 -A "$0" "$@"; #>}; $DenoInstall = "${HOME}/.deno/$(dv)"; $BinDir = "$DenoInstall/bin"; $DenoExe = "$BinDir/deno.exe"; if (-not(Test-Path -Path "$DenoExe" -PathType Leaf)) { $DenoZip = "$BinDir/deno.zip"; $DenoUri = "https://github.com/denoland/deno/releases/download/v$(dv)/deno-x86_64-pc-windows-msvc.zip";  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;  if (!(Test-Path $BinDir)) { New-Item $BinDir -ItemType Directory | Out-Null; };  Function Test-CommandExists { Param ($command); $oldPreference = $ErrorActionPreference; $ErrorActionPreference = "stop"; try {if(Get-Command "$command"){RETURN $true}} Catch {Write-Host "$command does not exist"; RETURN $false}; Finally {$ErrorActionPreference=$oldPreference}; };  if (Test-CommandExists curl) { curl -Lo $DenoZip $DenoUri; } else { curl.exe -Lo $DenoZip $DenoUri; };  if (Test-CommandExists curl) { tar xf $DenoZip -C $BinDir; } else { tar -Lo $DenoZip $DenoUri; };  Remove-Item $DenoZip;  $User = [EnvironmentVariableTarget]::User; $Path = [Environment]::GetEnvironmentVariable('Path', $User); if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) { [Environment]::SetEnvironmentVariable('Path', "$Path;$BinDir", $User); $Env:Path += ";$BinDir"; } }; & "$DenoExe" run -q --v8-flags=--max-old-space-size=32000 -A "$PSCommandPath" @args; Exit $LastExitCode; <# 
+// echo "1.35.3"; : --% ' |out-null <#'; }; version="$(dv)"; deno="$HOME/.deno/$version/bin/deno"; if [ -x "$deno" ]; then  exec "$deno" run -q -A --inspect-brk --v8-flags=--max-old-space-size=32000 "$0" "$@";  elif [ -f "$deno" ]; then  chmod +x "$deno" && exec "$deno" run -q --inspect-brk --v8-flags=--max-old-space-size=32000 -A "$0" "$@";  fi; bin_dir="$HOME/.deno/$version/bin"; exe="$bin_dir/deno"; has () { command -v "$1" >/dev/null; } ;  if ! has unzip; then if ! has apt-get; then  has brew && brew install unzip; else  if [ "$(whoami)" = "root" ]; then  apt-get install unzip -y; elif has sudo; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  sudo apt-get install unzip -y; fi; elif has doas; then  echo "Can I install unzip for you? (its required for this command to work) ";read ANSWER;echo;  if [ "$ANSWER" =~ ^[Yy] ]; then  doas apt-get install unzip -y; fi; fi;  fi;  fi;  if ! has unzip; then  echo ""; echo "So I couldn't find an 'unzip' command"; echo "And I tried to auto install it, but it seems that failed"; echo "(This script needs unzip and either curl or wget)"; echo "Please install the unzip command manually then re-run this script"; exit 1;  fi;  repo="denoland/deno"; if [ "$OS" = "Windows_NT" ]; then target="x86_64-pc-windows-msvc"; else :;  case $(uname -sm) in "Darwin x86_64") target="x86_64-apple-darwin" ;; "Darwin arm64") target="aarch64-apple-darwin" ;; "Linux aarch64") repo="LukeChannings/deno-arm64" target="linux-arm64" ;; "Linux armhf") echo "deno sadly doesn't support 32-bit ARM. Please check your hardware and possibly install a 64-bit operating system." exit 1 ;; *) target="x86_64-unknown-linux-gnu" ;; esac; fi; deno_uri="https://github.com/$repo/releases/download/v$version/deno-$target.zip"; exe="$bin_dir/deno"; if [ ! -d "$bin_dir" ]; then mkdir -p "$bin_dir"; fi;  if ! curl --fail --location --progress-bar --output "$exe.zip" "$deno_uri"; then if ! wget --output-document="$exe.zip" "$deno_uri"; then echo "Howdy! I looked for the 'curl' and for 'wget' commands but I didn't see either of them. Please install one of them, otherwise I have no way to install the missing deno version needed to run this code"; exit 1; fi; fi; unzip -d "$bin_dir" -o "$exe.zip"; chmod +x "$exe"; rm "$exe.zip"; exec "$deno" run -q --inspect-brk --v8-flags=--max-old-space-size=32000 -A "$0" "$@"; #>}; $DenoInstall = "${HOME}/.deno/$(dv)"; $BinDir = "$DenoInstall/bin"; $DenoExe = "$BinDir/deno.exe"; if (-not(Test-Path -Path "$DenoExe" -PathType Leaf)) { $DenoZip = "$BinDir/deno.zip"; $DenoUri = "https://github.com/denoland/deno/releases/download/v$(dv)/deno-x86_64-pc-windows-msvc.zip";  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;  if (!(Test-Path $BinDir)) { New-Item $BinDir -ItemType Directory | Out-Null; };  Function Test-CommandExists { Param ($command); $oldPreference = $ErrorActionPreference; $ErrorActionPreference = "stop"; try {if(Get-Command "$command"){RETURN $true}} Catch {Write-Host "$command does not exist"; RETURN $false}; Finally {$ErrorActionPreference=$oldPreference}; };  if (Test-CommandExists curl) { curl -Lo $DenoZip $DenoUri; } else { curl.exe -Lo $DenoZip $DenoUri; };  if (Test-CommandExists curl) { tar xf $DenoZip -C $BinDir; } else { tar -Lo $DenoZip $DenoUri; };  Remove-Item $DenoZip;  $User = [EnvironmentVariableTarget]::User; $Path = [Environment]::GetEnvironmentVariable('Path', $User); if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) { [Environment]::SetEnvironmentVariable('Path', "$Path;$BinDir", $User); $Env:Path += ";$BinDir"; } }; & "$DenoExe" run -q --inspect-brk --v8-flags=--max-old-space-size=32000 -A "$PSCommandPath" @args; Exit $LastExitCode; <# 
 import { FileSystem } from "https://deno.land/x/quickr@0.6.38/main/file_system.js"
 import { Console, clearAnsiStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, strikethrough, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.6.38/main/console.js"
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString, regex, escapeRegexMatch, escapeRegexReplace, extractFirst, isValidIdentifier } from "https://deno.land/x/good@1.4.4.1/string.js"
@@ -346,38 +346,42 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
 }
 
 const attrNameCount = {}
-class Node {
-    attrName = ""
-    depth = 0
-    parent = null
-    hitError = false
-    isLeaf = null
-    hasVersionAttribute = null
-    hasNameAttribute = null
-    constructor(values) {
-        Object.assign(this, values)
-        attrNameCount[this.attrName] = attrNameCount[this.attrName]+1 || 1
+const Node = {
+    keys:  {
+        depth: 0,
+        attrName: 1,
+        parent: 2,
+        hitError: 3,
+        hasVersionAttribute: 4,
+        hasNameAttribute: 5,
+    },
+    create(values) {
+        const newNode = []
+        for (const [key, value] of Object.entries(values)) {
+            newNode[Node.keys[key]] = value
+        }
+        attrNameCount[values.attrName] = attrNameCount[values.attrName]+1 || 1
         attrNameCount.pkgs = 1 // hardcoded edgecase
-    }
-    // this is a getter to help with memory usage
-    get attrPath() {
-        let parent = this.parent
-        const attrPath = [ this.attrName ]
+        return newNode
+    },
+    getPath(node) {
+        let parent = node[Node.keys.parent]
+        const attrPath =  [ node[Node.keys.attrName] ]
         while (parent) {
-            attrPath.push(parent.attrName)
-            parent = parent.parent
+            attrPath.push(parent[Node.keys.attrName])
+            parent = parent[Node.keys.parent]
         }
         return attrPath.reverse()
-    }
-    toJSON() {
+    },
+    toJSON(node) {
         return {
-            depth: this.depth,
-            attrName: this.attrName,
-            attrPath: this.attrPath,
-            isLeaf: this.isLeaf,
-            hasVersionAttribute: this.hasVersionAttribute,
-            hasNameAttribute: this.hasNameAttribute,
-            hitError: this.hitError,
+            depth: node[Node.keys.depth],
+            attrName: node[Node.keys.attrName],
+            attrPath: Node.getPath(node),
+            isLeaf: node[Node.keys.isLeaf],
+            hasVersionAttribute: node[Node.keys.hasVersionAttribute],
+            hasNameAttribute: node[Node.keys.hasNameAttribute],
+            hitError: node[Node.keys.hitError],
         }
     }
 }
@@ -385,7 +389,7 @@ class Node {
 var rootNode
 var _binaryHeap
 async function attrTreeIterator(workers) {
-    const root = rootNode = new Node({
+    const root = rootNode = Node.create({
         attrName: `pkgs`,
         depth:0,
         parent: null,
@@ -393,8 +397,8 @@ async function attrTreeIterator(workers) {
     const branchesToExplore = _binaryHeap = new BinaryHeap(
         // if a name is really common (ex: "out") it gets deprioritized heavily
         (a,b)=>ascend(
-            attrNameCount[a.attrName]*a.depth,
-            attrNameCount[b.attrName]*b.depth,
+            attrNameCount[a[Node.keys.attrName]]*a[Node.keys.depth],
+            attrNameCount[b[Node.keys.attrName]]*b[Node.keys.depth],
         )
     )
     branchesToExplore.push(root)
@@ -411,20 +415,18 @@ async function attrTreeIterator(workers) {
         }
         // assign some work
         const currentNode = branchesToExplore.pop()
-        // console.debug(`currentNode is:`,currentNode)
         
         for (const eachWorker of workers) {
             if (!eachWorker.isBusy) {
-                eachWorker.getAttrNames(currentNode.attrPath).then(
+                eachWorker.getAttrNames(Node.getPath(currentNode)).then(
                     ([names, subNames])=>{
-                        // console.debug(`names is:`,names)
                         const subNamesWasComputed = subNames != null
                         subNames = !subNamesWasComputed ? [] : subNames
-                        currentNode.isLeaf = names.length == 0
-                        currentNode.hasVersionAttribute = names.includes("version")
-                        currentNode.hasNameAttribute = names.includes("name")
+                        currentNode[Node.keys.isLeaf] = names.length == 0
+                        currentNode[Node.keys.hasVersionAttribute] = names.includes("version")
+                        currentNode[Node.keys.hasNameAttribute] = names.includes("name")
                         
-                        const effectivelyLeaf = currentNode.depth != 0 && attributesThatIndicateLeafPackage.some(each=>names.includes(each)) && !names.includes("pkgs")
+                        const effectivelyLeaf = currentNode[Node.keys.depth] != 0 && attributesThatIndicateLeafPackage.some(each=>names.includes(each)) && !names.includes("pkgs")
                         if (!effectivelyLeaf) {
                             for (let [attrName, eachSubNames] of zip(names, subNames)) {
                                 eachSubNames = eachSubNames||[]
@@ -432,9 +434,9 @@ async function attrTreeIterator(workers) {
                                 // if we don't have access to the data, then wait for a later iteration
                                 if (!subNamesWasComputed) {
                                     branchesToExplore.push(
-                                        new Node({
+                                        Node.create({
                                             attrName,
-                                            depth: currentNode.depth + 1,
+                                            depth: currentNode[Node.keys.depth] + 1,
                                             parent: currentNode,
                                             isLeaf: null,
                                             hasVersionAttribute: eachSubNames.includes("version"),
@@ -443,14 +445,14 @@ async function attrTreeIterator(workers) {
                                     )
                                 // if we were able to grab two levels, go ahead and process it
                                 } else {
-                                    buffer += `- { depth: ${currentNode.depth + 1}, attrName: ${attrName}, attrPath: ${currentNode.attrPath.concat([attrName])}, isLeaf: ${eachSubNames.length == 0}, hasVersionAttribute: ${eachSubNames.includes("version")}, hasNameAttribute: ${eachSubNames.includes("name")}, }\n`
+                                    buffer += `- { depth: ${currentNode[Node.keys.depth] + 1}, attrName: ${attrName}, attrPath: ${JSON.stringify(Node.getPath(currentNode).concat([attrName]))}, isLeaf: ${eachSubNames.length == 0}, hasVersionAttribute: ${eachSubNames.includes("version")}, hasNameAttribute: ${eachSubNames.includes("name")}, }\n`
                                     numberOfNodes+=1
                                     // only add to the heap if its not a leaf
                                     if (!eachSubNames.length == 0 && !attributesThatIndicateLeafPackage.some(each=>eachSubNames.includes(each))) {
                                         branchesToExplore.push(
-                                            new Node({
+                                            Node.create({
                                                 attrName,
-                                                depth: currentNode.depth + 1,
+                                                depth: currentNode[Node.keys.depth] + 1,
                                                 parent: currentNode,
                                                 isLeaf: eachSubNames.length == 0,
                                                 hasVersionAttribute: eachSubNames.includes("version"),
@@ -466,11 +468,11 @@ async function attrTreeIterator(workers) {
                 ).catch(
                     error=>{
                         // console.debug(`error is:`,error)
-                        currentNode.hitError = `${error}`
+                        currentNode[Node.keys.hitError] = `${error}`
                     }
                 ).finally(
                     ()=>{
-                        buffer += `- ${JSON.stringify(currentNode)}\n`
+                        buffer += `- ${JSON.stringify(Node.toJSON(currentNode))}\n`
                         numberOfNodes++
                     }
                 )
