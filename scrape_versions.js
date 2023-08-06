@@ -3,7 +3,7 @@ import { Console, clearAnsiStylesFrom, black, white, red, green, blue, yellow, c
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString, regex, escapeRegexMatch, escapeRegexReplace, extractFirst, isValidIdentifier } from "https://deno.land/x/good@1.4.4.1/string.js"
 import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/binary_heap.js"
 import { deferredPromise } from "https://deno.land/x/good@1.4.4.1/async.js"
-import { enumerate, count, zip } from "https://deno.land/x/good@1.4.4.1/iterable.js"
+import { enumerate, count, zip, iter, next } from "https://deno.land/x/good@1.4.4.1/iterable.js"
 
 
 // idea:
@@ -16,10 +16,16 @@ const stdoutLogRate = 500 // every __ miliseconds
 const nodeListOutputPath = "attr_tree.yaml"
 const numberOfParallelNixProcesses = 4
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-const startTime = (new Date()).getTime()
 const estimatedNumberOfNodes = 500_000
 const maxDepth = 8
 
+
+
+const logLine = (...args)=>Deno.stdout.write(
+    new TextEncoder().encode(
+        `${args.map(each=>typeof each =='string'?each:toRepresentation(each)).join("")}`.padEnd(160," ")+"\r"
+    )
+)
 /**
  * @example
  *     var { runNixCommand, practicalRunNixCommand, send, write } = createNixCommandRunner(`aa0e8072a57e879073cee969a780e586dbe57997`)
@@ -267,11 +273,37 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
     }
 
 // 
+// save system
+// 
+    let numberOfNodesProcessed = 0
+    const individualIterCounts = {}
+    const startTime = (new Date()).getTime()
+    await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
+    const outputBuffer = []
+    const savingSystem = {
+        async flushBuffer() {
+            const currentTime = (new Date()).getTime()
+            try {
+                await logLine(`nodeCount: ${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node`)
+                await savingSystem.mainLoggingFile.write(new TextEncoder().encode(outputBuffer.join("")))
+            } catch (error) {
+                console.debug(`error is:`,error)
+            }
+            outputBuffer.length = 0
+        }
+    }
+    try {
+        savingSystem.mainLoggingFile = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true, append: true})
+    } catch (error) {
+        console.debug(`error is:`,error)
+    }
+
+// 
 // 
 // iterative deepening
 // 
 // 
-    const outputBuffer = []
+    
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
     const rootAttrNames = await workers[0].getAttrNames([])
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
@@ -280,93 +312,93 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
             createNode(null, eachAttrName)
         )
     }
+    const iterators = []
     for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
-        let nextMaxDepth = 0
-        while (nextMaxDepth+1 <= maxDepth) {
-            nextMaxDepth += 1
-            const depthLevels = [
-                initialFrontier,
-            ]
-            const getDeepestNode = ()=>{
-                let deepestNode
-                let deepestDepth = depthLevels.length-1
-                while (deepestDepth>=0) {
-                    if (depthLevels[deepestDepth].length > 0) {
-                        deepestNode = depthLevels[deepestDepth].pop()
+        const workerId = `worker${worker.index}`
+        individualIterCounts[workerId] = 0
+        async function * exploreNodes() {
+            let nextMaxDepth = 0
+            while (nextMaxDepth+1 <= maxDepth) {
+                nextMaxDepth += 1
+                const depthLevels = [
+                    initialFrontier,
+                ]
+                const getDeepestNode = ()=>{
+                    let deepestNode
+                    let deepestDepth = depthLevels.length-1
+                    while (deepestDepth>=0) {
+                        if (depthLevels[deepestDepth].length > 0) {
+                            deepestNode = depthLevels[deepestDepth].pop()
+                            break
+                        }
+                        deepestDepth-=1
+                    }
+                    return [deepestNode, deepestDepth]
+                }
+                while (1) {
+                    const [ currentNode, nodeDepth ] = getDeepestNode()
+                    if (currentNode == null) {
                         break
                     }
-                    deepestDepth-=1
-                }
-                return [deepestNode, deepestDepth]
-            }
-            while (1) {
-                const [ currentNode, nodeDepth ] = getDeepestNode()
-                console.debug(`numberOfNodes is:`,numberOfNodes)
-                if (currentNode == null) {
-                    break
-                }
-                
-                const attrPath = getAttrPath(currentNode)
-                // console.debug(`1st attrPath is:`,attrPath)
-                const childDepth = nodeDepth+1
-                const childrenAreTooDeep = childDepth > nextMaxDepth
-                let attrErr
-                let childNames
-                try {
-                    childNames = await worker.getAttrNames(attrPath)
-                } catch (error) {
-                    // console.debug(`error is:`,error)
-                    attrErr = error.message
-                }
-                // console.debug(`childNames is:`,childNames)
-                if (!childrenAreTooDeep && childNames) {
-                    if (depthLevels[childDepth] == null) {
-                        depthLevels[childDepth] = []
+                    const currentTime = (new Date()).getTime()
+                    yield currentNode
+                    // logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, worker:${worker.index}, depth:${nodeDepth}, currentNodeName:${currentNode[Name]}`)
+                    individualIterCounts[workerId] += 1
+                    numberOfNodesProcessed += 1
+                    await logLine(`individualIterCounts: ${JSON.stringify(individualIterCounts)}, worker:${worker.index}, yielding, numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node`)
+                    
+                    
+                    const attrPath = getAttrPath(currentNode)
+                    // console.debug(`1st attrPath is:`,attrPath)
+                    const childDepth = nodeDepth+1
+                    const childrenAreTooDeep = childDepth > nextMaxDepth
+                    let attrErr
+                    let childNames
+                    try {
+                        // const startTime = (new Date()).getTime()
+                        childNames = await worker.getAttrNames(attrPath)
+                        // const endTime = (new Date()).getTime()
+                        // const duration = endTime - startTime
+                        // console.log(`worker.getAttrNames took ${duration}ms`)
+                    } catch (error) {
+                        // console.debug(`error is:`,error)
+                        attrErr = error.message
                     }
-                    for (const eachChildName of childNames) {
-                        // console.debug(`eachChildName is:`,eachChildName)
-                        // console.debug(`childDepth is:`,childDepth)
-                        depthLevels[childDepth].push(
-                            createNode(currentNode, eachChildName)
+                    // console.debug(`childNames is:`,childNames)
+                    if (!childrenAreTooDeep && childNames) {
+                        if (depthLevels[childDepth] == null) {
+                            depthLevels[childDepth] = []
+                        }
+                        for (const eachChildName of childNames) {
+                            // console.debug(`eachChildName is:`,eachChildName)
+                            // console.debug(`childDepth is:`,childDepth)
+                            depthLevels[childDepth].push(
+                                createNode(currentNode, eachChildName)
+                            )
+                        }
+                    }
+                    
+                    // only record at the depth that hasnt been seen before
+                    if (nodeDepth == nextMaxDepth) {
+                        // save data about this node
+                        outputBuffer.push(
+                            "- "+JSON.stringify([
+                                attrPath, nodeDepth, childNames, attrErr,
+                            ])
                         )
+                        if (outputBuffer.length > 100) {
+                            savingSystem.flushBuffer()
+                        }
                     }
-                }
-                
-                // only record at the depth that hasnt been seen before
-                if (nodeDepth == nextMaxDepth) {
-                    // save data about this node
-                    outputBuffer.push(
-                        "- "+JSON.stringify([
-                            attrPath, nodeDepth, childNames, attrErr,
-                        ])
-                    )
                 }
             }
         }
+        iterators.push(
+            iter(exploreNodes())
+        )
     }
-
-// 
-// 
-// interval based saving
-// 
-// 
-    // file writing
-    try {
-        await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
-        const mainLoggingFile = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true, append: true})
-        // await mainLoggingFile.seek(0, Deno.SeekMode.End)
-        setInterval(async () => {
-            const currentTime = (new Date()).getTime()
-            console.debug(`currentTime is:`,currentTime)
-            try {
-                await Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
-                await mainLoggingFile.write(new TextEncoder().encode(outputBuffer.join("")))
-            } catch (error) {
-                console.debug(`error is:`,error)
-            }
-            outputBuffer.length = 0
-        }, stdoutLogRate)
-
-    } catch (error) {
-        console.debug(`error is:`,error)
+    const unpackASAP = (source, promise)=>promise.then((()=>unpackASAP(source, next(source))))
+    while (true) {
+        await logLine(`individualIterCounts: ${JSON.stringify(individualIterCounts)}, numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node`)
+        iterators.map(each=>unpackASAP(each, next(each)))
     }
