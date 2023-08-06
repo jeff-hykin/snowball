@@ -367,17 +367,6 @@ const maxDepth = 8
     const createNode = (parent, name)=>{
         if (shouldUpdateNameFrequencies) {
             nameFrequency[name] = (nameFrequency[name]||0)+1
-            if (numberOfNodesProcessed % 5000 == 0) {
-                function* generateLines() {
-                    for (const [key, value] of Object.entries(nameFrequency)) {
-                        yield `${yaml.stringify(key).replace(/\n$/,"")}: ${yaml.stringify(value)}`
-                    }
-                }
-                FileSystem.write({
-                    data:generateLines(),
-                    path: nameFrequencyPath,
-                })
-            }
         }
         return [parent, name]
     }
@@ -429,10 +418,21 @@ const maxDepth = 8
 // 
 // save system
 // 
+    const saveNameFrequency = ()=>{
+        function* generateLines() {
+            for (const [key, value] of Object.entries(nameFrequency)) {
+                yield `${yaml.stringify(key).replace(/\n$/,"")}: ${yaml.stringify(value)}`
+            }
+        }
+        return FileSystem.write({
+            data:generateLines(),
+            path: nameFrequencyPath,
+        })
+    }
+    
     await FileSystem.remove(nodeListOutputPath)
     let numberOfNodesProcessed = 0
     const individualIterCounts = {}
-    const startTime = (new Date()).getTime()
     await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
     const outputBuffer = []
     const savingSystem = {
@@ -472,16 +472,17 @@ const maxDepth = 8
             createNode(null, eachAttrName)
         )
     }
-    await FileSystem.write({data: JSON.stringify(frontierInitNodes.map(each=>each.map(each=>each[1])),0,4), path: "frontier_inits.ignore.json"})
     const workerPromises = workers.map(each=>deferredPromise())
+    let prevMinCommonDepth = 0
+    const minCommonDepth = ()=>Math.min(...workers.map(each=>each.nextMaxDepth))
     for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
         const workerId = `worker${worker.index}`
         const exclusiveNames = initialFrontier.map(eachNode=>eachNode[Name])
         ;((async ()=>{
-            let nextMaxDepth = 0
-            while (nextMaxDepth+1 <= maxDepth) {
-                nextMaxDepth += 1
-                individualIterCounts[workerId] = nextMaxDepth
+            worker.nextMaxDepth = 0
+            while (worker.nextMaxDepth+1 <= maxDepth) {
+                worker.nextMaxDepth += 1
+                individualIterCounts[workerId] = worker.nextMaxDepth
                 const effectiveDepth = (node, baseDepth)=>{
                     let depth = baseDepth
                     const nodeName = node[Name]
@@ -505,7 +506,7 @@ const maxDepth = 8
                     const nodeDepth = getDepth(currentNode)
                     const attrPath = getAttrPath(currentNode)
                     const childDepth = nodeDepth+1
-                    const childrenAreTooDeep = childDepth > nextMaxDepth
+                    const childrenAreTooDeep = childDepth > worker.nextMaxDepth
                     let attrErr
                     let childNames
                     try {
@@ -516,6 +517,12 @@ const maxDepth = 8
                     numberOfNodesProcessed += 1
                     if (numberOfNodesProcessed % 200 == 0) {
                         await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${(((new Date()).getTime()-startTime)/numberOfNodesProcessed).toFixed(2)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
+                        if (shouldUpdateNameFrequencies) {
+                            if (minCommonDepth() != prevMinCommonDepth) {
+                                prevMinCommonDepth = minCommonDepth()
+                                saveNameFrequency()
+                            }
+                        }
                     }
                     if (!childrenAreTooDeep && childNames) {
                         for (const eachChildName of childNames) {
@@ -526,7 +533,7 @@ const maxDepth = 8
                     }
                     
                     // only record at the depth that hasnt been seen before
-                    if (nodeDepth == nextMaxDepth) {
+                    if (nodeDepth == worker.nextMaxDepth) {
                         // save data about this node
                         outputBuffer.push(
                             "- "+JSON.stringify([
@@ -544,4 +551,5 @@ const maxDepth = 8
             await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
         })())
     }
+    const startTime = (new Date()).getTime()
     await Promise.all(workerPromises).then(()=>Deno.exit(0))
