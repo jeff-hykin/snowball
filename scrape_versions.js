@@ -14,7 +14,7 @@ import { enumerate, count, zip, iter, next } from "https://deno.land/x/good@1.4.
 const waitTime = 100 // miliections
 const stdoutLogRate = 500 // every __ miliseconds
 const nodeListOutputPath = "attr_tree.yaml"
-const numberOfParallelNixProcesses = 4
+const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const estimatedNumberOfNodes = 500_000
 const maxDepth = 8
@@ -58,17 +58,18 @@ function createNixCommandRunner(nixpkgsHash) {
     // 
         var stdout = child.stdout.getReader()
         var stdoutRead = ()=>stdout.read().then(({value, done})=>new TextDecoder().decode(value))
-        var stdoutTextBuffer = ""
+        var stdoutTextBuffer = []
         ;((async ()=>{
             while (true) {
-                stdoutTextBuffer += await stdoutRead()
+                const chunk = await stdoutRead()
+                stdoutTextBuffer.push(chunk)
             }
         })())
         let prevStdoutIndex = 0
         // returns all text since last grab
         var grabStdout = ()=>{
-            const output = stdoutTextBuffer
-            stdoutTextBuffer = ""
+            const output = stdoutTextBuffer.join("")
+            stdoutTextBuffer = []
             return output
         }
 
@@ -77,17 +78,18 @@ function createNixCommandRunner(nixpkgsHash) {
     // 
         var stderr = child.stderr.getReader()
         var stderrRead = ()=>stderr.read().then(({value, done})=>new TextDecoder().decode(value))
-        var stderrTextBuffer = ""
+        var stderrTextBuffer = []
         ;((async ()=>{
             while (true) {
-                stderrTextBuffer += await stderrRead()
+                const chunk = await stderrRead()
+                stderrTextBuffer.push(chunk)
             }
         })())
         let prevStderrIndex = 0
         // returns all text since last grab
         var grabStderr = ()=>{
-            const output = stderrTextBuffer
-            stderrTextBuffer = ""
+            const output = stderrTextBuffer.join("")
+            stderrTextBuffer = []
             return output
         }
 
@@ -101,15 +103,44 @@ function createNixCommandRunner(nixpkgsHash) {
             await send(`builtins.trace "${bigRandomStartInt}" "${bigRandomStartInt}"`)
             await send(command)
             await send(`builtins.trace "${bigRandomEndInt}" "${bigRandomEndInt}"`)
-            const fullMessagePattern = regex`${/[\w\W]*/}${bigRandomStartInt}${/([\w\W]*)/}${bigRandomEndInt}${/[\w\W]*/}`
+            const messageHasStartAndEnd = (message)=>{
+                let index = 0
+                for (const each of message) {
+                    // console.debug(`message.slice(index, index+bigRandomStartInt.length) is:`, toRepresentation( message.slice(index, index+bigRandomStartInt.length)))
+                    if (message.slice(index, index+bigRandomStartInt.length) == bigRandomStartInt) {
+                        const startIndex = index+bigRandomStartInt.length
+                        // console.debug(`startIndex is:`, toRepresentation( startIndex))
+                        message = message.slice(startIndex,)
+                        index = message.length
+                        for (const each of message) {
+                            // console.debug(`message.slice(index-bigRandomEndInt.length, index) is:`, toRepresentation( message.slice(index-bigRandomEndInt.length, index)))
+                            if (message.slice(index-bigRandomEndInt.length, index) == bigRandomEndInt) {
+                                const endIndex = startIndex+index-bigRandomEndInt.length
+                                // console.debug(`endIndex is:`,endIndex)
+                                return { startIndex, endIndex }
+                            }
+                            index--
+                        }
+                        // console.debug(`couldnt find ${bigRandomEndInt}`,)
+                        return undefined
+                    }
+                    index++
+                }
+                // console.debug(`couldnt find ${bigRandomStartInt}`,)
+            }
+            // const fullMessagePattern = new RegExp(`${bigRandomStartInt}[\w\W]*${bigRandomEndInt}`)
             const fullMessagePatternStdout = regex`[\\w\\W]*"${bigRandomStartInt}"\\u001b\\[0m${/\n\n([\w\W]*)\n/}\\u001b\\[35;1m"${bigRandomEndInt}${/[\w\W]*/}`
             const fullMessagePatternStderr = regex`${/[\w\W]*/}${bigRandomStartInt}${/\n([\w\W]*)/}(?:\\n?${commonStderrStartString})?trace: ${bigRandomEndInt}${/[\w\W]*/}`
+            let stdoutIsDone = false
+            let stderrIsDone = false
             let stdoutText = ""
             let stderrText = ""
             // accumulate all the text for this particular command
             while (true) {
-                const stdoutIsDone = stdoutText.match(fullMessagePattern)
-                const stderrIsDone = stderrText.match(fullMessagePattern)
+                // console.debug(`stdoutText is:`,stdoutText)
+                stdoutIsDone = stdoutIsDone || messageHasStartAndEnd(stdoutText)
+                // console.debug(`stderrText is:`,stderrText)
+                stderrIsDone = stderrIsDone || messageHasStartAndEnd(stderrText)
                 if (stdoutIsDone && stderrIsDone) {
                     break
                 }
@@ -121,19 +152,50 @@ function createNixCommandRunner(nixpkgsHash) {
                 }
                 await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
             }
+            
+            // console.debug(`stdout pre is:`, toRepresentation( stdoutText))
+            let stdout = stdoutText.slice(stdoutIsDone.startIndex, stdoutIsDone.endIndex)
+            var prefix = `"\u001b[0m\n\n`
+            if (stdout.startsWith(prefix)) {
+                stdout = stdout.slice(prefix.length,)
+            }
+            var postfix = `\n\u001b[35;1m"`
+            if (stdout.endsWith(postfix)) {
+                stdout = stdout.slice(0, -postfix.length)
+            }
+
+
+            // console.debug(`PRE stderrText.split("\\n") is:`,JSON.stringify(stderrText.split("\n"),0,4))
+            let stderr = stderrText.slice(stderrIsDone.startIndex, stderrIsDone.endIndex)
+            var prefix = `\n`
+            if (stderr.startsWith(prefix)) {
+                stderr = stderr.slice(prefix.length,)
+            }
+            var postfix = `trace: `
+            if (stderr.endsWith(postfix)) {
+                stderr = stderr.slice(0, -postfix.length)
+            }
+
+            // console.debug(`stdout core is:`, toRepresentation(stdout))
+            // console.debug(`stderr core is:`, JSON.stringify(stderr.split("\n"),0,4))
+            
             return {
-                stdout: stdoutText.replace(fullMessagePatternStdout, "$1"),
-                stderr: stderrText.replace(fullMessagePatternStderr, "$1"),
+                stdout,
+                stderr,
             }
         }
     
 
     const purgeWarnings = regex`(^(?:${commonStderrStartString})+|(?:${commonStderrStartString})+$)`.g
     async function practicalRunNixCommand(command) {
-        const { stdout, stderr } = await runNixCommand(command)
+        let { stdout, stderr } = await runNixCommand(command)
+        stdout = clearAnsiStylesFrom(stdout).replace(/\n*$/,"")
+        stderr = stderr.replace(purgeWarnings, "").replace(/\n$/,"")
+        // console.debug(`stdout post is:`, toRepresentation(stdout))
+        // console.debug(`stderr post is:`, toRepresentation(stderr))
         return {
-            stdout: clearAnsiStylesFrom(stdout).replace(/\n*$/,""),
-            stderr: stderr.replace(purgeWarnings, "").replace(/\n$/,""),
+            stdout,
+            stderr,
         }
     }
 
@@ -226,15 +288,17 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
         return depth
     }
     const getAttrPath = (node)=>{
-        // console.debug(`node is:`,node)
-        const attrPath = []
+        // // console.debug(`node is:`,node)
+        const attrPath = [
+            node[Name]
+        ]
         // follow the parent until the parent is null
         while (node[Parent] != null) {
-            attrPath.push(node[Name])
             node = node[Parent]
+            attrPath.push(node[Name])
         }
-        // console.debug(`getAttrPath is:`,attrPath)
-        return attrPath
+        // // console.debug(`getAttrPath is:`,attrPath)
+        return attrPath.reverse()
     }
 
 // 
@@ -257,17 +321,17 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
             return this.taskFinished.state=="pending"
         }
         async getAttrNames(attrList) {
-            await this.taskFinished
-            this.taskFinished = deferredPromise()
+            // await this.taskFinished
+            // this.taskFinished = deferredPromise()
             try {
                 // console.log(`worker ${this.index} is working on a job`)
                 const attrPath = ["pkgs", ...attrList]
-                // console.debug(`attrPath is:`,attrPath)
+                // // console.debug(`attrPath is:`,attrPath)
                 const output = await getAttrNames(attrPath, this.practicalRunNixCommand)
                 // console.log(`worker ${this.index} is finished job`)
                 return output
             } finally {
-                this.taskFinished.resolve()
+                // this.taskFinished.resolve()
             }
         }
     }
@@ -275,27 +339,32 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
 // 
 // save system
 // 
+    await FileSystem.remove(nodeListOutputPath)
     let numberOfNodesProcessed = 0
     const individualIterCounts = {}
     const startTime = (new Date()).getTime()
     await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
     const outputBuffer = []
     const savingSystem = {
-        async flushBuffer() {
-            const currentTime = (new Date()).getTime()
-            try {
-                await logLine(`nodeCount: ${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node`)
-                await savingSystem.mainLoggingFile.write(new TextEncoder().encode(outputBuffer.join("")))
-            } catch (error) {
-                console.debug(`error is:`,error)
-            }
+        flushBuffer() {
+            // clear the buffer synchonously, then return a promise for the rest
+            const bufferChunk = [...outputBuffer]
             outputBuffer.length = 0
+            return (async ()=>{
+                const currentTime = (new Date()).getTime()
+                try {
+                    //await logLine(`nodeCount: ${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node`)
+                    await savingSystem.mainLoggingFile.write(new TextEncoder().encode(bufferChunk.join("\n")))
+                } catch (error) {
+                    console.debug(`error is:`,error)
+                }
+            })()
         }
     }
     try {
         savingSystem.mainLoggingFile = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true, append: true})
     } catch (error) {
-        console.debug(`error is:`,error)
+        // console.debug(`error is:`,error)
     }
 
 // 
@@ -305,6 +374,7 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
 // 
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
+    await Promise.all(workers.map(each=>each.taskFinished))
     const rootAttrNames = await workers[0].getAttrNames([])
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
@@ -312,11 +382,12 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
             createNode(null, eachAttrName)
         )
     }
-    const iterators = []
+    await FileSystem.write({data: JSON.stringify(frontierInitNodes.map(each=>each.map(each=>each[1])),0,4), path: "frontier_inits.ignore.json"})
     for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
         const workerId = `worker${worker.index}`
+        const exclusiveNames = initialFrontier.map(eachNode=>eachNode[Name])
         individualIterCounts[workerId] = 0
-        async function * exploreNodes() {
+        ;((async ()=>{
             let nextMaxDepth = 0
             while (nextMaxDepth+1 <= maxDepth) {
                 nextMaxDepth += 1
@@ -333,23 +404,31 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                         }
                         deepestDepth-=1
                     }
-                    return [deepestNode, deepestDepth]
+                    return [deepestNode, deepestDepth+1]
                 }
                 while (1) {
+                    const depthLevelsBefore = [...depthLevels.map(each=>[...each])]
                     const [ currentNode, nodeDepth ] = getDeepestNode()
                     if (currentNode == null) {
                         break
                     }
                     const currentTime = (new Date()).getTime()
-                    yield currentNode
-                    // logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, worker:${worker.index}, depth:${nodeDepth}, currentNodeName:${currentNode[Name]}`)
-                    individualIterCounts[workerId] += 1
                     numberOfNodesProcessed += 1
-                    await logLine(`individualIterCounts: ${JSON.stringify(individualIterCounts)}, worker:${worker.index}, yielding, numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node`)
-                    
+                    if (numberOfNodesProcessed % 10 == 0 && worker.index == 0) {
+                        logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node, worker:${worker.index}`)
+                    }
                     
                     const attrPath = getAttrPath(currentNode)
-                    // console.debug(`1st attrPath is:`,attrPath)
+                    // if (!exclusiveNames.some(eachName=>attrPath.includes(eachName))) {
+                    //     throw Error(`
+                    //         ${workerId}: found node that doesn't belong!
+                    //         attrPath: ${attrPath}
+                    //         currentNode: ${currentNode}
+                    //         exclusiveNames: ${exclusiveNames}
+                    //         depthLevelsBefore: ${JSON.stringify(depthLevelsBefore,0,4)}
+                    //     `)
+                    // }
+                    // // console.debug(`1st attrPath is:`,attrPath)
                     const childDepth = nodeDepth+1
                     const childrenAreTooDeep = childDepth > nextMaxDepth
                     let attrErr
@@ -361,17 +440,18 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                         // const duration = endTime - startTime
                         // console.log(`worker.getAttrNames took ${duration}ms`)
                     } catch (error) {
-                        // console.debug(`error is:`,error)
+                        // // console.debug(`error is:`,error)
                         attrErr = error.message
                     }
-                    // console.debug(`childNames is:`,childNames)
+                    // // console.debug(`childNames is:`,childNames)
                     if (!childrenAreTooDeep && childNames) {
                         if (depthLevels[childDepth] == null) {
                             depthLevels[childDepth] = []
                         }
                         for (const eachChildName of childNames) {
-                            // console.debug(`eachChildName is:`,eachChildName)
-                            // console.debug(`childDepth is:`,childDepth)
+                            // console.log(`    here13`)
+                            // // console.debug(`eachChildName is:`,eachChildName)
+                            // // console.debug(`childDepth is:`,childDepth)
                             depthLevels[childDepth].push(
                                 createNode(currentNode, eachChildName)
                             )
@@ -386,19 +466,11 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                                 attrPath, nodeDepth, childNames, attrErr,
                             ])
                         )
-                        if (outputBuffer.length > 100) {
-                            savingSystem.flushBuffer()
+                        if (outputBuffer.length > 1000) {
+                            await savingSystem.flushBuffer()
                         }
                     }
                 }
             }
-        }
-        iterators.push(
-            iter(exploreNodes())
-        )
-    }
-    const unpackASAP = (source, promise)=>promise.then((()=>unpackASAP(source, next(source))))
-    while (true) {
-        await logLine(`individualIterCounts: ${JSON.stringify(individualIterCounts)}, numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node`)
-        iterators.map(each=>unpackASAP(each, next(each)))
+        })())
     }
