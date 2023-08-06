@@ -4,15 +4,15 @@ import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, to
 import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/binary_heap.js"
 import { deferredPromise } from "https://deno.land/x/good@1.4.4.1/async.js"
 import { enumerate, count, zip, iter, next } from "https://deno.land/x/good@1.4.4.1/iterable.js"
-
-
+import * as yaml from "https://deno.land/std@0.168.0/encoding/yaml.ts"
 
 const waitTime = 100 // miliections
-const stdoutLogRate = 500 // every __ miliseconds
 const nodeListOutputPath = "attr_tree.yaml"
+const nameFrequencyPath = "./attr_name_count.yaml"
+const nameFrequency = yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
+const shouldUpdateNameFrequencies = true
 const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-const estimatedNumberOfNodes = 500_000
 const maxDepth = 8
 
 
@@ -362,29 +362,27 @@ const maxDepth = 8
 // node setup
 // 
     let numberOfNodes = 0
-    const nodePreAllocatedBuffer = []
-    let remainingAllocations = estimatedNumberOfNodes
-    while (remainingAllocations--) {
-        nodePreAllocatedBuffer.push([null, ""])
-    }
     const Parent = 0
     const Name = 1
     const createNode = (parent, name)=>{
-        // if (typeof name != 'string') {
-        //     throw Error(`createNode(${parent}, ${name}), name (2nd arg) needs to be a string`)
-        // }
-        if (numberOfNodes < estimatedNumberOfNodes) {
-            const node = nodePreAllocatedBuffer[numberOfNodes]
-            node[Parent] = parent
-            node[Name] = name
-            numberOfNodes+=1
-            return node
-        } else {
-            return [parent, name]
+        if (shouldUpdateNameFrequencies) {
+            nameFrequency[name] = (nameFrequency[name]||0)+1
+            if (numberOfNodesProcessed % 5000 == 0) {
+                function* generateLines() {
+                    for (const [key, value] of Object.entries(nameFrequency)) {
+                        yield `${yaml.stringify(key).replace(/\n$/,"")}: ${yaml.stringify(value)}`
+                    }
+                }
+                FileSystem.write({
+                    data:generateLines(),
+                    path: nameFrequencyPath,
+                })
+            }
         }
+        return [parent, name]
     }
     const getDepth = (node)=>{
-        let depth = 0
+        let depth = 1
         // follow the parent until the parent is null
         while (node[Parent] != null) {
             node = node[Parent]
@@ -484,69 +482,44 @@ const maxDepth = 8
             while (nextMaxDepth+1 <= maxDepth) {
                 nextMaxDepth += 1
                 individualIterCounts[workerId] = nextMaxDepth
-                const depthLevels = [
-                    [...initialFrontier],
-                ]
-                const getDeepestNode = ()=>{
-                    let deepestNode
-                    let deepestDepth = depthLevels.length-1
-                    while (deepestDepth>=0) {
-                        if (depthLevels[deepestDepth].length > 0) {
-                            deepestNode = depthLevels[deepestDepth].pop()
-                            break
-                        }
-                        deepestDepth-=1
+                const effectiveDepth = (node, baseDepth)=>{
+                    let depth = baseDepth
+                    const nodeName = node[Name]
+                    if (nodeName.startsWith("__")) {
+                        depth += 2
                     }
-                    return [deepestNode, deepestDepth+1]
+                    depth += Math.log(nameFrequency[nodeName]||1)
+                    return depth
                 }
-                while (1) {
-                    const depthLevelsBefore = [...depthLevels.map(each=>[...each])]
-                    const [ currentNode, nodeDepth ] = getDeepestNode()
-                    if (currentNode == null) {
-                        break
-                    }
-                    const currentTime = (new Date()).getTime()
-                    numberOfNodesProcessed += 1
-                    if (numberOfNodesProcessed % 200 == 0) {
-                        await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
-                    }
-                    
+                const frontier = new BinaryHeap(
+                    (nodeA,nodeB)=>ascend(
+                        effectiveDepth(nodeA),
+                        effectiveDepth(nodeB)
+                    )
+                )
+                for (const each of initialFrontier) {
+                    frontier.push(each)
+                }
+                while (frontier.length > 0) {
+                    const currentNode = frontier.pop()
+                    const nodeDepth = getDepth(currentNode)
                     const attrPath = getAttrPath(currentNode)
-                    // if (!exclusiveNames.some(eachName=>attrPath.includes(eachName))) {
-                    //     throw Error(`
-                    //         ${workerId}: found node that doesn't belong!
-                    //         attrPath: ${attrPath}
-                    //         currentNode: ${currentNode}
-                    //         exclusiveNames: ${exclusiveNames}
-                    //         depthLevelsBefore: ${JSON.stringify(depthLevelsBefore,0,4)}
-                    //     `)
-                    // }
-                    // // console.debug(`1st attrPath is:`,attrPath)
                     const childDepth = nodeDepth+1
-                    const childDepthLevel = nodeDepth
                     const childrenAreTooDeep = childDepth > nextMaxDepth
                     let attrErr
                     let childNames
                     try {
-                        // const startTime = (new Date()).getTime()
                         childNames = await worker.getAttrNames(attrPath)
-                        // const endTime = (new Date()).getTime()
-                        // const duration = endTime - startTime
-                        // console.log(`worker.getAttrNames took ${duration}ms`)
                     } catch (error) {
-                        // // console.debug(`error is:`,error)
                         attrErr = error.message
                     }
-                    // // console.debug(`childNames is:`,childNames)
+                    numberOfNodesProcessed += 1
+                    if (numberOfNodesProcessed % 200 == 0) {
+                        await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${(((new Date()).getTime()-startTime)/numberOfNodesProcessed).toFixed(2)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
+                    }
                     if (!childrenAreTooDeep && childNames) {
-                        if (depthLevels[childDepthLevel] == null) {
-                            depthLevels[childDepthLevel] = []
-                        }
                         for (const eachChildName of childNames) {
-                            // console.log(`    here13`)
-                            // // console.debug(`eachChildName is:`,eachChildName)
-                            // // console.debug(`childDepthLevel is:`,childDepth)
-                            depthLevels[childDepthLevel].push(
+                            frontier.push(
                                 createNode(currentNode, eachChildName)
                             )
                         }
@@ -566,7 +539,7 @@ const maxDepth = 8
                     }
                 }
             }
-            await workerPromises[worker.index].resolve(true)
+            await workerPromises[worker.index].resolve()
             console.log(`\n${workerId} finished!:${workerPromises.filter(each=>each.state=="pending").length} remaining`)
             await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
         })())
