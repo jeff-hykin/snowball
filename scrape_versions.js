@@ -10,7 +10,7 @@ const waitTime = 100 // miliections
 const nodeListOutputPath = "attr_tree.yaml"
 const nameFrequencyPath = "./attr_name_count.yaml"
 const nameFrequency = yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
-const shouldUpdateNameFrequencies = true
+const shouldUpdateNameFrequencies = false
 const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
@@ -473,8 +473,8 @@ const maxDepth = 8
         )
     }
     const workerPromises = workers.map(each=>deferredPromise())
-    let prevMinCommonDepth = 0
-    const minCommonDepth = ()=>Math.min(...workers.map(each=>each.nextMaxDepth))
+    let prevMaxCommonDepth = 0
+    const maxCommonDepth = ()=>Math.max(...workers.map(each=>each.nextMaxDepth))
     for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
         const workerId = `worker${worker.index}`
         const exclusiveNames = initialFrontier.map(eachNode=>eachNode[Name])
@@ -518,8 +518,8 @@ const maxDepth = 8
                     if (numberOfNodesProcessed % 200 == 0) {
                         await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${(((new Date()).getTime()-startTime)/numberOfNodesProcessed).toFixed(2)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
                         if (shouldUpdateNameFrequencies) {
-                            if (minCommonDepth() != prevMinCommonDepth) {
-                                prevMinCommonDepth = minCommonDepth()
+                            if (maxCommonDepth() != prevMaxCommonDepth) {
+                                prevMaxCommonDepth = maxCommonDepth()
                                 saveNameFrequency()
                             }
                         }
