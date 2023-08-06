@@ -16,239 +16,348 @@ const estimatedNumberOfNodes = 500_000
 const maxDepth = 8
 
 
-
-const logLine = (...args)=>Deno.stdout.write(
-    new TextEncoder().encode(
-        `${args.map(each=>typeof each =='string'?each:toRepresentation(each)).join("")}`.padEnd(160," ")+"\r"
-    )
-)
-/**
- * @example
- *     var { runNixCommand, practicalRunNixCommand, send, write } = createNixCommandRunner(`aa0e8072a57e879073cee969a780e586dbe57997`)
- */
-function createNixCommandRunner(nixpkgsHash) {
-    // saftey/cleaning
-    nixpkgsHash = nixpkgsHash.replace(/[^a-fA-F0-9]/g,"").toLowerCase()
-
-    // 
-    // setup subprocess
-    // 
-        var command = new Deno.Command(
-            `nix`,
-            {
-                args: [`repl`, `-I`, `nixpkgs=https://github.com/NixOS/nixpkgs/archive/${nixpkgsHash}.tar.gz`],
-                stdin: 'piped',
-                stdout: 'piped',
-                stderr: 'piped' 
-            }
+// 
+// helpers
+// 
+    const logLine = (...args)=>Deno.stdout.write(
+        new TextEncoder().encode(
+            `${args.map(each=>typeof each =='string'?each:toRepresentation(each)).join("")}`.padEnd(160," ")+"\r"
         )
-        var child = command.spawn()
-        var stdin = child.stdin.getWriter()
-        var write = (text)=>stdin.write( new TextEncoder().encode(text) )
-        var send = (text)=>stdin.write( new TextEncoder().encode(text+"\n") )
+    )
+    /**
+     * @example
+     *     var { runNixCommand, practicalRunNixCommand, send, write } = createNixCommandRunner(`aa0e8072a57e879073cee969a780e586dbe57997`)
+     */
+    function createNixCommandRunner(nixpkgsHash) {
+        // saftey/cleaning
+        nixpkgsHash = nixpkgsHash.replace(/[^a-fA-F0-9]/g,"").toLowerCase()
+
+        // 
+        // setup subprocess
+        // 
+            var command = new Deno.Command(
+                `nix`,
+                {
+                    args: [`repl`, `-I`, `nixpkgs=https://github.com/NixOS/nixpkgs/archive/${nixpkgsHash}.tar.gz`],
+                    stdin: 'piped',
+                    stdout: 'piped',
+                    stderr: 'piped' 
+                }
+            )
+            var child = command.spawn()
+            var stdin = child.stdin.getWriter()
+            var write = (text)=>stdin.write( new TextEncoder().encode(text) )
+            var send = (text)=>stdin.write( new TextEncoder().encode(text+"\n") )
 
 
 
-    // 
-    // stdout
-    // 
-        var stdout = child.stdout.getReader()
-        var stdoutRead = ()=>stdout.read().then(({value, done})=>new TextDecoder().decode(value))
-        var stdoutTextBuffer = []
-        ;((async ()=>{
-            while (true) {
-                const chunk = await stdoutRead()
-                stdoutTextBuffer.push(chunk)
+        // 
+        // stdout
+        // 
+            var stdout = child.stdout.getReader()
+            var stdoutRead = ()=>stdout.read().then(({value, done})=>new TextDecoder().decode(value))
+            var stdoutTextBuffer = []
+            ;((async ()=>{
+                while (true) {
+                    const chunk = await stdoutRead()
+                    stdoutTextBuffer.push(chunk)
+                }
+            })())
+            let prevStdoutIndex = 0
+            // returns all text since last grab
+            var grabStdout = ()=>{
+                const output = stdoutTextBuffer.join("")
+                stdoutTextBuffer = []
+                return output
             }
-        })())
-        let prevStdoutIndex = 0
-        // returns all text since last grab
-        var grabStdout = ()=>{
-            const output = stdoutTextBuffer.join("")
-            stdoutTextBuffer = []
-            return output
-        }
 
-    // 
-    // stderr
-    // 
-        var stderr = child.stderr.getReader()
-        var stderrRead = ()=>stderr.read().then(({value, done})=>new TextDecoder().decode(value))
-        var stderrTextBuffer = []
-        ;((async ()=>{
-            while (true) {
-                const chunk = await stderrRead()
-                stderrTextBuffer.push(chunk)
+        // 
+        // stderr
+        // 
+            var stderr = child.stderr.getReader()
+            var stderrRead = ()=>stderr.read().then(({value, done})=>new TextDecoder().decode(value))
+            var stderrTextBuffer = []
+            ;((async ()=>{
+                while (true) {
+                    const chunk = await stderrRead()
+                    stderrTextBuffer.push(chunk)
+                }
+            })())
+            let prevStderrIndex = 0
+            // returns all text since last grab
+            var grabStderr = ()=>{
+                const output = stderrTextBuffer.join("")
+                stderrTextBuffer = []
+                return output
             }
-        })())
-        let prevStderrIndex = 0
-        // returns all text since last grab
-        var grabStderr = ()=>{
-            const output = stderrTextBuffer.join("")
-            stderrTextBuffer = []
-            return output
-        }
 
-    // 
-    // repl helper
-    // 
-        const commonStderrStartString = `Failed tcsetattr(TCSADRAIN): Inappropriate ioctl for device\n`
-        async function runNixCommand(command) {
-            var bigRandomStartInt = `${Math.random()}`.replace(".","").replace(/^0*/,"")
-            var bigRandomEndInt = `${Math.random()}`.replace(".","").replace(/^0*/,"")
-            await send(`builtins.trace "${bigRandomStartInt}" "${bigRandomStartInt}"`)
-            await send(command)
-            await send(`builtins.trace "${bigRandomEndInt}" "${bigRandomEndInt}"`)
-            const messageHasStartAndEnd = (message)=>{
-                let index = 0
-                for (const each of message) {
-                    // console.debug(`message.slice(index, index+bigRandomStartInt.length) is:`, toRepresentation( message.slice(index, index+bigRandomStartInt.length)))
-                    if (message.slice(index, index+bigRandomStartInt.length) == bigRandomStartInt) {
-                        const startIndex = index+bigRandomStartInt.length
-                        // console.debug(`startIndex is:`, toRepresentation( startIndex))
-                        message = message.slice(startIndex,)
-                        index = message.length
-                        for (const each of message) {
-                            // console.debug(`message.slice(index-bigRandomEndInt.length, index) is:`, toRepresentation( message.slice(index-bigRandomEndInt.length, index)))
-                            if (message.slice(index-bigRandomEndInt.length, index) == bigRandomEndInt) {
-                                const endIndex = startIndex+index-bigRandomEndInt.length
-                                // console.debug(`endIndex is:`,endIndex)
-                                return { startIndex, endIndex }
+        // 
+        // repl helper
+        // 
+            const commonStderrStartString = `Failed tcsetattr(TCSADRAIN): Inappropriate ioctl for device\n`
+            async function runNixCommand(command) {
+                var bigRandomStartInt = `${Math.random()}`.replace(".","").replace(/^0*/,"")
+                var bigRandomEndInt = `${Math.random()}`.replace(".","").replace(/^0*/,"")
+                await send(`builtins.trace "${bigRandomStartInt}" "${bigRandomStartInt}"`)
+                await send(command)
+                await send(`builtins.trace "${bigRandomEndInt}" "${bigRandomEndInt}"`)
+                const messageHasStartAndEnd = (message)=>{
+                    let index = 0
+                    for (const each of message) {
+                        // console.debug(`message.slice(index, index+bigRandomStartInt.length) is:`, toRepresentation( message.slice(index, index+bigRandomStartInt.length)))
+                        if (message.slice(index, index+bigRandomStartInt.length) == bigRandomStartInt) {
+                            const startIndex = index+bigRandomStartInt.length
+                            // console.debug(`startIndex is:`, toRepresentation( startIndex))
+                            message = message.slice(startIndex,)
+                            index = message.length
+                            for (const each of message) {
+                                // console.debug(`message.slice(index-bigRandomEndInt.length, index) is:`, toRepresentation( message.slice(index-bigRandomEndInt.length, index)))
+                                if (message.slice(index-bigRandomEndInt.length, index) == bigRandomEndInt) {
+                                    const endIndex = startIndex+index-bigRandomEndInt.length
+                                    // console.debug(`endIndex is:`,endIndex)
+                                    return { startIndex, endIndex }
+                                }
+                                index--
                             }
-                            index--
+                            // console.debug(`couldnt find ${bigRandomEndInt}`,)
+                            return undefined
                         }
-                        // console.debug(`couldnt find ${bigRandomEndInt}`,)
-                        return undefined
+                        index++
                     }
-                    index++
+                    // console.debug(`couldnt find ${bigRandomStartInt}`,)
                 }
-                // console.debug(`couldnt find ${bigRandomStartInt}`,)
-            }
-            // const fullMessagePattern = new RegExp(`${bigRandomStartInt}[\w\W]*${bigRandomEndInt}`)
-            const fullMessagePatternStdout = regex`[\\w\\W]*"${bigRandomStartInt}"\\u001b\\[0m${/\n\n([\w\W]*)\n/}\\u001b\\[35;1m"${bigRandomEndInt}${/[\w\W]*/}`
-            const fullMessagePatternStderr = regex`${/[\w\W]*/}${bigRandomStartInt}${/\n([\w\W]*)/}(?:\\n?${commonStderrStartString})?trace: ${bigRandomEndInt}${/[\w\W]*/}`
-            let stdoutIsDone = false
-            let stderrIsDone = false
-            let stdoutText = ""
-            let stderrText = ""
-            // accumulate all the text for this particular command
-            while (true) {
-                // console.debug(`stdoutText is:`,stdoutText)
-                stdoutIsDone = stdoutIsDone || messageHasStartAndEnd(stdoutText)
-                // console.debug(`stderrText is:`,stderrText)
-                stderrIsDone = stderrIsDone || messageHasStartAndEnd(stderrText)
-                if (stdoutIsDone && stderrIsDone) {
-                    break
+                // const fullMessagePattern = new RegExp(`${bigRandomStartInt}[\w\W]*${bigRandomEndInt}`)
+                const fullMessagePatternStdout = regex`[\\w\\W]*"${bigRandomStartInt}"\\u001b\\[0m${/\n\n([\w\W]*)\n/}\\u001b\\[35;1m"${bigRandomEndInt}${/[\w\W]*/}`
+                const fullMessagePatternStderr = regex`${/[\w\W]*/}${bigRandomStartInt}${/\n([\w\W]*)/}(?:\\n?${commonStderrStartString})?trace: ${bigRandomEndInt}${/[\w\W]*/}`
+                let stdoutIsDone = false
+                let stderrIsDone = false
+                let stdoutText = ""
+                let stderrText = ""
+                // accumulate all the text for this particular command
+                while (true) {
+                    // console.debug(`stdoutText is:`,stdoutText)
+                    stdoutIsDone = stdoutIsDone || messageHasStartAndEnd(stdoutText)
+                    // console.debug(`stderrText is:`,stderrText)
+                    stderrIsDone = stderrIsDone || messageHasStartAndEnd(stderrText)
+                    if (stdoutIsDone && stderrIsDone) {
+                        break
+                    }
+                    if (!stdoutIsDone) {
+                        stdoutText += grabStdout()
+                    }
+                    if (!stderrIsDone) {
+                        stderrText += grabStderr()
+                    }
+                    await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
                 }
-                if (!stdoutIsDone) {
-                    stdoutText += grabStdout()
+                
+                // console.debug(`stdout pre is:`, toRepresentation( stdoutText))
+                let stdout = stdoutText.slice(stdoutIsDone.startIndex, stdoutIsDone.endIndex)
+                var prefix = `"\u001b[0m\n\n`
+                if (stdout.startsWith(prefix)) {
+                    stdout = stdout.slice(prefix.length,)
                 }
-                if (!stderrIsDone) {
-                    stderrText += grabStderr()
+                var postfix = `\n\u001b[35;1m"`
+                if (stdout.endsWith(postfix)) {
+                    stdout = stdout.slice(0, -postfix.length)
                 }
-                await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
-            }
-            
-            // console.debug(`stdout pre is:`, toRepresentation( stdoutText))
-            let stdout = stdoutText.slice(stdoutIsDone.startIndex, stdoutIsDone.endIndex)
-            var prefix = `"\u001b[0m\n\n`
-            if (stdout.startsWith(prefix)) {
-                stdout = stdout.slice(prefix.length,)
-            }
-            var postfix = `\n\u001b[35;1m"`
-            if (stdout.endsWith(postfix)) {
-                stdout = stdout.slice(0, -postfix.length)
-            }
 
 
-            // console.debug(`PRE stderrText.split("\\n") is:`,JSON.stringify(stderrText.split("\n"),0,4))
-            let stderr = stderrText.slice(stderrIsDone.startIndex, stderrIsDone.endIndex)
-            var prefix = `\n`
-            if (stderr.startsWith(prefix)) {
-                stderr = stderr.slice(prefix.length,)
-            }
-            var postfix = `trace: `
-            if (stderr.endsWith(postfix)) {
-                stderr = stderr.slice(0, -postfix.length)
-            }
+                // console.debug(`PRE stderrText.split("\\n") is:`,JSON.stringify(stderrText.split("\n"),0,4))
+                let stderr = stderrText.slice(stderrIsDone.startIndex, stderrIsDone.endIndex)
+                var prefix = `\n`
+                if (stderr.startsWith(prefix)) {
+                    stderr = stderr.slice(prefix.length,)
+                }
+                var postfix = `trace: `
+                if (stderr.endsWith(postfix)) {
+                    stderr = stderr.slice(0, -postfix.length)
+                }
 
-            // console.debug(`stdout core is:`, toRepresentation(stdout))
-            // console.debug(`stderr core is:`, JSON.stringify(stderr.split("\n"),0,4))
-            
+                // console.debug(`stdout core is:`, toRepresentation(stdout))
+                // console.debug(`stderr core is:`, JSON.stringify(stderr.split("\n"),0,4))
+                
+                return {
+                    stdout,
+                    stderr,
+                }
+            }
+        
+
+        const purgeWarnings = regex`(^(?:${commonStderrStartString})+|(?:${commonStderrStartString})+$)`.g
+        async function practicalRunNixCommand(command) {
+            let { stdout, stderr } = await runNixCommand(command)
+            stdout = clearAnsiStylesFrom(stdout).replace(/\n*$/,"")
+            stderr = stderr.replace(purgeWarnings, "").replace(/\n$/,"")
+            // console.debug(`stdout post is:`, toRepresentation(stdout))
+            // console.debug(`stderr post is:`, toRepresentation(stderr))
             return {
                 stdout,
                 stderr,
             }
         }
-    
 
-    const purgeWarnings = regex`(^(?:${commonStderrStartString})+|(?:${commonStderrStartString})+$)`.g
-    async function practicalRunNixCommand(command) {
-        let { stdout, stderr } = await runNixCommand(command)
-        stdout = clearAnsiStylesFrom(stdout).replace(/\n*$/,"")
-        stderr = stderr.replace(purgeWarnings, "").replace(/\n$/,"")
-        // console.debug(`stdout post is:`, toRepresentation(stdout))
-        // console.debug(`stderr post is:`, toRepresentation(stderr))
-        return {
-            stdout,
-            stderr,
+        return { runNixCommand, practicalRunNixCommand, send, write }
+    }
+
+    var escapeNixString = (string)=>{
+        return `"${string.replace(/\$\{|[\\"]/g, '\\$&').replace(/\u0000/g, '\\0')}"`
+    }
+
+    /**
+     * @example
+     *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
+     *     // [] 
+     *     // non-attrset values return empty lists
+     * 
+     *     await getAttrNames("builtins", practicalRunNixCommand)
+     *     // [ "abort", "add", "addErrorContext", ... ]
+     *
+     *     await getAttrNames(["builtins"], practicalRunNixCommand)
+     *     // [ "abort", "add", "addErrorContext", ... ]
+     *
+     */
+    async function getAttrNames(attrList, practicalRunNixCommand) {
+        if (typeof attrList == 'string') {
+            attrList = [attrList]
+        }
+        let attrString
+        if (attrList.length == 1) {
+            attrString = attrList[0]
+        } else {
+            attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
+        }
+        const command = `
+            (builtins.trace
+                (
+                    if
+                        (builtins.isAttrs (${attrString}))
+                    then 
+                        (builtins.toJSON
+                            (builtins.attrNames
+                                (${attrString})
+                            )
+                        )
+                    else
+                        (builtins.toJSON [])
+                )
+                null
+            )
+        `
+        const { stdout, stderr } = await practicalRunNixCommand(command)
+        try {
+            return JSON.parse(stderr.replace(/^trace: /,""))
+        } catch (error) {
+            throw Error(stderr)
         }
     }
 
-    return { runNixCommand, practicalRunNixCommand, send, write }
-}
-
-var escapeNixString = (string)=>{
-    return `"${string.replace(/\$\{|[\\"]/g, '\\$&').replace(/\u0000/g, '\\0')}"`
-}
-
-/**
- * @example
- *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
- *     // [] 
- *     // non-attrset values return empty lists
- * 
- *     await getAttrNames("builtins", practicalRunNixCommand)
- *     // [ "abort", "add", "addErrorContext", ... ]
- *
- *     await getAttrNames(["builtins"], practicalRunNixCommand)
- *     // [ "abort", "add", "addErrorContext", ... ]
- *
- */
-async function getAttrNames(attrList, practicalRunNixCommand) {
-    if (typeof attrList == 'string') {
-        attrList = [attrList]
-    }
-    let attrString
-    if (attrList.length == 1) {
-        attrString = attrList[0]
-    } else {
-        attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
-    }
-    const command = `
-        (builtins.trace
-            (
-                if
-                    (builtins.isAttrs (${attrString}))
-                then 
-                    (builtins.toJSON
-                        (builtins.attrNames
-                            (${attrString})
-                        )
+    /**
+     * @example
+     *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
+     *     // [ [], null ] 
+     *     // non-attrset values return empty lists
+     * 
+     *     await getAttrNames("builtins", practicalRunNixCommand)
+     *     // got attrs but couldn't get 1-deeper attrs
+     *     // [ [ "abort", "add", "addErrorContext", ... ], null  ]
+     *
+     *     await getAttrNames(["builtins"], practicalRunNixCommand)
+     *     // [ [ "abort", "add", "addErrorContext", ... ], null ]
+     *
+     */
+    async function getDeepAttrNames(attrList, practicalRunNixCommand) {
+        if (typeof attrList == 'string') {
+            attrList = [attrList]
+        }
+        let attrString
+        if (attrList.length == 1) {
+            attrString = attrList[0]
+        } else {
+            attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
+        }
+        // try to get 2 levels of attribute names
+        const command = `
+            (builtins.trace
+                (builtins.toJSON
+                    (
+                        if
+                            (builtins.isAttrs (${attrString}))
+                        then 
+                            [
+                                (builtins.attrNames
+                                    (${attrString})
+                                )
+                                (builtins.map
+                                    (eachAttr:
+                                        (
+                                            let
+                                                value = (builtins.getAttr eachAttr ${attrString});
+                                            in
+                                                if
+                                                    (builtins.isAttrs value)
+                                                then 
+                                                    (builtins.attrNames
+                                                        value
+                                                    )
+                                                else
+                                                    []
+                                        )
+                                    )
+                                    (builtins.attrNames
+                                        (${attrString})
+                                    )
+                                )
+                            ]
+                        else
+                            [ [] null ]
                     )
-                else
-                    (builtins.toJSON [])
+                )
+                null
             )
-            null
-        )
-    `
-    const { stdout, stderr } = await practicalRunNixCommand(command)
-    try {
-        return JSON.parse(stderr.replace(/^trace: /,""))
-    } catch (error) {
-        throw Error(stderr)
+        `
+        // console.debug(`command is:`,command)
+        const { stdout, stderr } = await practicalRunNixCommand(command)
+        // console.debug(`stderr is:`, toRepresentation(stderr))
+        try {
+            // console.debug()
+            // console.debug(`stderr.replace(/^trace: /,"") is:`,stderr.replace(/^trace: /,""))
+            return JSON.parse(stderr.replace(/^trace: /,""))
+        } catch (error) {
+            try {
+                // console.debug(`caught error is:`,error)
+                const command = `
+                    (builtins.trace
+                        (
+                            if
+                                (builtins.isAttrs (${attrString}))
+                            then 
+                                (builtins.toJSON
+                                    (builtins.attrNames
+                                        (${attrString})
+                                    )
+                                )
+                            else
+                                (builtins.toJSON [])
+                        )
+                        null
+                    )
+                `
+                // console.debug(`command is:`,command)
+                const { stdout, stderr } = await practicalRunNixCommand(command)
+                // console.debug(`stderr is:`, toRepresentation(stderr))
+                // const parsedOutput = JSON.parse(stderr.replace(/^trace: /,""))
+                // console.debug(`parsedOutput is:`,parsedOutput)
+                return [
+                    JSON.parse(stderr.replace(/^trace: /,"")),
+                    null
+                ]
+            } catch (error) {
+                throw Error(stderr)
+            }
+        }
     }
-}
+
 // 
 // node setup
 // 
@@ -306,29 +415,16 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
             this.index = Worker.totalCount
             Worker.totalCount += 1
             Object.assign(this, createNixCommandRunner(nixpkgsHash))
-            this.taskFinished = deferredPromise()
-            this.send(`pkgs = import <nixpkgs> {}`).then(()=>{
-                this.taskFinished.resolve()
-                console.log(`worker${this.index} has initalized`)
-            })
+            this.initFinished = this.send(`pkgs = import <nixpkgs> {}`)
             console.log(`worker${this.index} created`)
         }
-        get isBusy() {
-            return this.taskFinished.state=="pending"
-        }
         async getAttrNames(attrList) {
-            // await this.taskFinished
-            // this.taskFinished = deferredPromise()
-            try {
-                // console.log(`worker ${this.index} is working on a job`)
-                const attrPath = ["pkgs", ...attrList]
-                // // console.debug(`attrPath is:`,attrPath)
-                const output = await getAttrNames(attrPath, this.practicalRunNixCommand)
-                // console.log(`worker ${this.index} is finished job`)
-                return output
-            } finally {
-                // this.taskFinished.resolve()
-            }
+            // console.log(`worker ${this.index} is working on a job`)
+            const attrPath = ["pkgs", ...attrList]
+            // // console.debug(`attrPath is:`,attrPath)
+            const output = await getAttrNames(attrPath, this.practicalRunNixCommand)
+            // console.log(`worker ${this.index} is finished job`)
+            return output
         }
     }
 
@@ -370,7 +466,7 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
 // 
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
-    await Promise.all(workers.map(each=>each.taskFinished))
+    await Promise.all(workers.map(each=>each.initFinished))
     const rootAttrNames = await workers[0].getAttrNames([])
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
