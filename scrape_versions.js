@@ -2,6 +2,8 @@ import { FileSystem } from "https://deno.land/x/quickr@0.6.36/main/file_system.j
 import { Console, clearAnsiStylesFrom, black, white, red, green, blue, yellow, cyan, magenta, lightBlack, lightWhite, lightRed, lightGreen, lightBlue, lightYellow, lightMagenta, lightCyan, blackBackground, whiteBackground, redBackground, greenBackground, blueBackground, yellowBackground, magentaBackground, cyanBackground, lightBlackBackground, lightRedBackground, lightGreenBackground, lightYellowBackground, lightBlueBackground, lightMagentaBackground, lightCyanBackground, lightWhiteBackground, bold, reset, dim, italic, underline, inverse, strikethrough, gray, grey, lightGray, lightGrey, grayBackground, greyBackground, lightGrayBackground, lightGreyBackground, } from "https://deno.land/x/quickr@0.6.36/main/console.js"
 import { capitalize, indent, toCamelCase, digitsToEnglishArray, toPascalCase, toKebabCase, toSnakeCase, toScreamingtoKebabCase, toScreamingtoSnakeCase, toRepresentation, toString, regex, escapeRegexMatch, escapeRegexReplace, extractFirst, isValidIdentifier } from "https://deno.land/x/good@1.4.4.1/string.js"
 import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/binary_heap.js"
+import { deferredPromise } from "https://deno.land/x/good@1.4.4.1/async.js"
+import { enumerate, count, zip } from "https://deno.land/x/good@1.4.4.1/iterable.js"
 
 
 // idea:
@@ -10,6 +12,13 @@ import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/bi
     // then iterate till at least all static-analysis packages have been found
 
 const waitTime = 100 // miliections
+const stdoutLogRate = 500 // every __ miliseconds
+const nodeListOutputPath = "attr_tree.yaml"
+const numberOfParallelNixProcesses = 4
+var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
+const startTime = (new Date()).getTime()
+const estimatedNumberOfNodes = 500_000
+const maxDepth = 8
 
 /**
  * @example
@@ -173,158 +182,191 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
     try {
         return JSON.parse(stderr.replace(/^trace: /,""))
     } catch (error) {
-        throw Error(`
-            getAttrNames failed under the following conditions:
-                attrList: ${indent({ string:  toRepresentation(attrList), by: "                ", noLead: true })}
-                command: ${indent({ string:  toRepresentation(command), by: "                ", noLead: true })}
-                stdout: ${indent({ string:  toRepresentation(stdout), by: "                ", noLead: true })}
-                stderr: ${indent({ string:  toRepresentation(stderr), by: "                ", noLead: true })}
-        `)
+        throw Error(stderr)
     }
 }
+// 
+// node setup
+// 
+    let numberOfNodes = 0
+    const nodePreAllocatedBuffer = []
+    let remainingAllocations = estimatedNumberOfNodes
+    while (remainingAllocations--) {
+        nodePreAllocatedBuffer.push([null, ""])
+    }
+    const Parent = 0
+    const Name = 1
+    const createNode = (parent, name)=>{
+        // if (typeof name != 'string') {
+        //     throw Error(`createNode(${parent}, ${name}), name (2nd arg) needs to be a string`)
+        // }
+        if (numberOfNodes < estimatedNumberOfNodes) {
+            const node = nodePreAllocatedBuffer[numberOfNodes]
+            node[Parent] = parent
+            node[Name] = name
+            numberOfNodes+=1
+            return node
+        } else {
+            return [parent, name]
+        }
+    }
+    const getDepth = (node)=>{
+        let depth = 0
+        // follow the parent until the parent is null
+        while (node[Parent] != null) {
+            node = node[Parent]
+            depth += 1
+        }
+        return depth
+    }
+    const getAttrPath = (node)=>{
+        // console.debug(`node is:`,node)
+        const attrPath = []
+        // follow the parent until the parent is null
+        while (node[Parent] != null) {
+            attrPath.push(node[Name])
+            node = node[Parent]
+        }
+        // console.debug(`getAttrPath is:`,attrPath)
+        return attrPath
+    }
 
-const attrNameCount = {}
-class Node {
-    packageId = undefined
-    attrName = ""
-    depth = 0
-    parent = null
-    hitError = false
-    children = {}
-    constructor(values) {
-        Object.assign(this, values)
-        attrNameCount[this.attrName] = attrNameCount[this.attrName]+1 || 1
-    }
-    // this is a getter to help with memory usage
-    get attrPath() {
-        let parent = this.parent
-        const attrPath = [ this.attrName ]
-        while (parent) {
-            attrPath.push(parent.attrName)
-            parent = parent.parent
+// 
+// workers
+// 
+    class Worker {
+        static totalCount = 0
+        constructor(nixpkgsHash) {
+            this.index = Worker.totalCount
+            Worker.totalCount += 1
+            Object.assign(this, createNixCommandRunner(nixpkgsHash))
+            this.taskFinished = deferredPromise()
+            this.send(`pkgs = import <nixpkgs> {}`).then(()=>{
+                this.taskFinished.resolve()
+                console.log(`worker${this.index} has initalized`)
+            })
+            console.log(`worker${this.index} created`)
         }
-        return attrPath.reverse()
-    }
-    toJSON() {
-        return {
-            packageId: this.packageId,
-            attrName: this.attrName,
-            depth: this.depth,
-            hitError: this.hitError,
-            attrPath: this.attrPath,
+        get isBusy() {
+            return this.taskFinished.state=="pending"
         }
-    }
-}
-
-var rootNode
-var _binaryHeap
-async function* attrTreeIterator(workers) {
-    const root = rootNode = new Node({
-        attrName: `pkgs`,
-        depth:0,
-        parent: null,
-    })
-    const branchesToExplore = _binaryHeap = new BinaryHeap(
-        // if a name is really common (ex: "out") it gets deprioritized heavily
-        (a,b)=>ascend(
-            attrNameCount[a.attrName]*a.depth,
-            attrNameCount[b.attrName]*b.depth,
-        )
-    )
-    branchesToExplore.push(root)
-    while (branchesToExplore.length > 0 || workers.some(each=>each.isBusy)) {
-        // wait for workers to add to que, or wait for workers to become available
-        if (branchesToExplore.length == 0 || workers.every(each=>each.isBusy)) {
-            // console.log(`waiting because:`)
-            // console.debug(`    branchesToExplore.length is:`,branchesToExplore.length)
-            // console.debug(`    workers.every(each=>each.isBusy) is:`,workers.every(each=>each.isBusy))
-            // console.debug(`    workers.map(each=>each.isBusy) is:`,workers.map(each=>each.isBusy))
-            await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
-            continue
-        }
-        // assign some work
-        const currentNode = branchesToExplore.pop()
-        for (const eachWorker of workers) {
-            if (!eachWorker.isBusy) {
-                eachWorker.getAttrNames(currentNode.attrPath).then(
-                    names=>{
-                        for (const attrName of names) {
-                            branchesToExplore.push(
-                                currentNode.children[attrName] = new Node({
-                                    attrName,
-                                    depth: currentNode.depth + 1,
-                                    parent: currentNode,
-                                })
-                            )
-                        }
-                    }
-                ).catch(
-                    error=>{
-                        currentNode.hitError = `${error}`
-                    }
-                )
-                // only need one worker
-                break
+        async getAttrNames(attrList) {
+            await this.taskFinished
+            this.taskFinished = deferredPromise()
+            try {
+                // console.log(`worker ${this.index} is working on a job`)
+                const attrPath = ["pkgs", ...attrList]
+                // console.debug(`attrPath is:`,attrPath)
+                const output = await getAttrNames(attrPath, this.practicalRunNixCommand)
+                // console.log(`worker ${this.index} is finished job`)
+                return output
+            } finally {
+                this.taskFinished.resolve()
             }
         }
-        yield currentNode
     }
-}
 
-class Worker {
-    static all = []
-    constructor(nixpkgsHash) {
-        this.isBusy = true
-        Object.assign(this, createNixCommandRunner(nixpkgsHash))
-        this.send(`pkgs = import <nixpkgs> {}`).then(()=>{
-            this.isBusy = false
-            console.log(`worker${this.index} has initalized`)
-        })
-        this.index = Worker.all.length
-        console.log(`worker${this.index} created`)
-        Worker.all.push(this)
+// 
+// 
+// iterative deepening
+// 
+// 
+    const outputBuffer = []
+    const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
+    const rootAttrNames = await workers[0].getAttrNames([])
+    const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
+    for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
+        frontierInitNodes[index%numberOfParallelNixProcesses].push(
+            createNode(null, eachAttrName)
+        )
     }
-    async getAttrNames(attrList) {
-        this.isBusy = true
-        try {
-            // console.log(`worker ${this.index} is working on a job`)
-            const output = await getAttrNames(attrList, this.practicalRunNixCommand)
-            // console.log(`worker ${this.index} is finished job`)
-            return output
-        } finally {
-            this.isBusy = false
+    for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
+        let nextMaxDepth = 0
+        while (nextMaxDepth+1 <= maxDepth) {
+            nextMaxDepth += 1
+            const depthLevels = [
+                initialFrontier,
+            ]
+            const getDeepestNode = ()=>{
+                let deepestNode
+                let deepestDepth = depthLevels.length-1
+                while (deepestDepth>=0) {
+                    if (depthLevels[deepestDepth].length > 0) {
+                        deepestNode = depthLevels[deepestDepth].pop()
+                        break
+                    }
+                    deepestDepth-=1
+                }
+                return [deepestNode, deepestDepth]
+            }
+            while (1) {
+                const [ currentNode, nodeDepth ] = getDeepestNode()
+                console.debug(`numberOfNodes is:`,numberOfNodes)
+                if (currentNode == null) {
+                    break
+                }
+                
+                const attrPath = getAttrPath(currentNode)
+                // console.debug(`1st attrPath is:`,attrPath)
+                const childDepth = nodeDepth+1
+                const childrenAreTooDeep = childDepth > nextMaxDepth
+                let attrErr
+                let childNames
+                try {
+                    childNames = await worker.getAttrNames(attrPath)
+                } catch (error) {
+                    // console.debug(`error is:`,error)
+                    attrErr = error.message
+                }
+                // console.debug(`childNames is:`,childNames)
+                if (!childrenAreTooDeep && childNames) {
+                    if (depthLevels[childDepth] == null) {
+                        depthLevels[childDepth] = []
+                    }
+                    for (const eachChildName of childNames) {
+                        // console.debug(`eachChildName is:`,eachChildName)
+                        // console.debug(`childDepth is:`,childDepth)
+                        depthLevels[childDepth].push(
+                            createNode(currentNode, eachChildName)
+                        )
+                    }
+                }
+                
+                // only record at the depth that hasnt been seen before
+                if (nodeDepth == nextMaxDepth) {
+                    // save data about this node
+                    outputBuffer.push(
+                        "- "+JSON.stringify([
+                            attrPath, nodeDepth, childNames, attrErr,
+                        ])
+                    )
+                }
+            }
         }
     }
-}
 
-const stdoutLogRate = 500 // every __ miliseconds
-const nodeListOutputPath = "attr_tree.yaml"
-const numberOfParallelNixProcesses = 40
-var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
-const startTime = (new Date()).getTime()
-let numberOfNodes = 0
+// 
+// 
+// interval based saving
+// 
+// 
+    // file writing
+    try {
+        await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
+        const mainLoggingFile = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true, append: true})
+        // await mainLoggingFile.seek(0, Deno.SeekMode.End)
+        setInterval(async () => {
+            const currentTime = (new Date()).getTime()
+            console.debug(`currentTime is:`,currentTime)
+            try {
+                await Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
+                await mainLoggingFile.write(new TextEncoder().encode(outputBuffer.join("")))
+            } catch (error) {
+                console.debug(`error is:`,error)
+            }
+            outputBuffer.length = 0
+        }, stdoutLogRate)
 
-// logging
-setInterval(() => {
-    const currentTime = (new Date()).getTime()
-    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
-}, stdoutLogRate)
-
-// file writing
-let buffer = ""
-await FileSystem.ensureIsFolder(FileSystem.parentPath(nodeListOutputPath))
-const file = await Deno.open(nodeListOutputPath, {read:true, write: true, create: true})
-await file.seek(0, Deno.SeekMode.End)
-setInterval(() => {
-    const currentTime = (new Date()).getTime()
-    Deno.stdout.write(new TextEncoder().encode(`nodeCount: ${numberOfNodes}, _binaryHeap: ${_binaryHeap.length}, spending ${Math.round((currentTime-startTime)/numberOfNodes)}ms per node                                     \r`))
-    file.write(new TextEncoder().encode(buffer))
-    buffer = ""
-}, stdoutLogRate)
-
-for await (const eachNode of attrTreeIterator(workers)) {
-    numberOfNodes ++ 
-    buffer += `- ${JSON.stringify(eachNode)}\n`
-}
-await file.close()
+    } catch (error) {
+        console.debug(`error is:`,error)
+    }
