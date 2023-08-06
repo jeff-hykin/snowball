@@ -6,10 +6,6 @@ import { deferredPromise } from "https://deno.land/x/good@1.4.4.1/async.js"
 import { enumerate, count, zip, iter, next } from "https://deno.land/x/good@1.4.4.1/iterable.js"
 
 
-// idea:
-    // pull nixpkgs commit
-    // use static analysis to find the quantity of packages (look for attrsets with version and name attribute)
-    // then iterate till at least all static-analysis packages have been found
 
 const waitTime = 100 // miliections
 const stdoutLogRate = 500 // every __ miliseconds
@@ -479,3 +475,4 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
             await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
         })())
     }
+    await Promise.all(workerPromises).then(()=>Deno.exit(0))
