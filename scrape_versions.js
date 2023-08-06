@@ -11,10 +11,13 @@ const nodeListOutputPath = "attr_tree.yaml"
 const nameFrequencyPath = "./attr_name_count.yaml"
 const nameFrequency = yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
 const shouldUpdateNameFrequencies = false
-const numberOfParallelNixProcesses = 40
+const numberOfParallelNixProcesses = 240
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
 
+
+// TOOD:
+    // allow any partition to use any available worker
 
 // 
 // helpers
@@ -365,9 +368,6 @@ const maxDepth = 8
     const Parent = 0
     const Name = 1
     const createNode = (parent, name)=>{
-        if (shouldUpdateNameFrequencies) {
-            nameFrequency[name] = (nameFrequency[name]||0)+1
-        }
         return [parent, name]
     }
     const getDepth = (node)=>{
@@ -402,15 +402,20 @@ const maxDepth = 8
             this.index = Worker.totalCount
             Worker.totalCount += 1
             Object.assign(this, createNixCommandRunner(nixpkgsHash))
-            this.initFinished = this.send(`pkgs = import <nixpkgs> {}`)
+            this.taskFinished = this.send(`pkgs = import <nixpkgs> {}`)
             console.log(`worker${this.index} created`)
         }
+        get isBusy() {
+            return this.taskFinished.state == "pending"
+        }
         async getAttrNames(attrList) {
+            this.taskFinished = deferredPromise()
             // console.log(`worker ${this.index} is working on a job`)
             const attrPath = ["pkgs", ...attrList]
             // // console.debug(`attrPath is:`,attrPath)
             const output = await getAttrNames(attrPath, this.practicalRunNixCommand)
             // console.log(`worker ${this.index} is finished job`)
+            this.taskFinished.resolve()
             return output
         }
     }
@@ -464,7 +469,18 @@ const maxDepth = 8
 // 
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
-    await Promise.all(workers.map(each=>each.initFinished))
+    const workerBasedGetAttrNames = async (...args)=>{
+        findWorker: while (1) {
+            for (var worker of workers) {
+                if (!worker.isBusy) {
+                    break findWorker
+                }
+            }
+            await new Promise((resolve, reject)=>setTimeout(resolve, waitTime))
+        }
+        return worker.getAttrNames(...args)
+    }
+    await Promise.all(workers.map(each=>each.taskFinished))
     const rootAttrNames = await workers[0].getAttrNames([])
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
@@ -472,19 +488,17 @@ const maxDepth = 8
             createNode(null, eachAttrName)
         )
     }
-    const workerPromises = workers.map(each=>deferredPromise())
-    let prevMaxCommonDepth = 0
-    const maxCommonDepth = ()=>Math.max(...workers.map(each=>each.nextMaxDepth))
-    for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
-        const workerId = `worker${worker.index}`
+    const deepeningPromises = workers.map(each=>deferredPromise())
+    let prevMinCommonDepth = 0
+    const minCommonDepth = ()=>Math.min(...workers.map(each=>each.nextMaxDepth))
+    for (const [index, initialFrontier] of enumerate(frontierInitNodes)) {
         const exclusiveNames = initialFrontier.map(eachNode=>eachNode[Name])
         ;((async ()=>{
-            worker.nextMaxDepth = 0
-            while (worker.nextMaxDepth+1 <= maxDepth) {
-                worker.nextMaxDepth += 1
-                individualIterCounts[workerId] = worker.nextMaxDepth
-                const effectiveDepth = (node, baseDepth)=>{
-                    let depth = baseDepth
+            let nextMaxDepth = 0
+            while (nextMaxDepth+1 <= maxDepth) {
+                nextMaxDepth += 1
+                const effectiveDepth = (node)=>{
+                    let depth = getDepth(node)
                     const nodeName = node[Name]
                     if (nodeName.startsWith("__")) {
                         depth += 2
@@ -504,29 +518,22 @@ const maxDepth = 8
                 while (frontier.length > 0) {
                     const currentNode = frontier.pop()
                     const nodeDepth = getDepth(currentNode)
+                    const effectiveNodeDepth = effectiveDepth(currentNode)
                     const attrPath = getAttrPath(currentNode)
                     const childDepth = nodeDepth+1
-                    const childrenAreTooDeep = childDepth > worker.nextMaxDepth
+                    const childrenAreTooDeep = childDepth > nextMaxDepth
                     let attrErr
                     let childNames
                     try {
-                        childNames = await worker.getAttrNames(attrPath)
+                        childNames = await workerBasedGetAttrNames(attrPath)
                     } catch (error) {
                         attrErr = error.message
-                    }
-                    numberOfNodesProcessed += 1
-                    if (numberOfNodesProcessed % 200 == 0) {
-                        await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${(((new Date()).getTime()-startTime)/numberOfNodesProcessed).toFixed(2)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
-                        if (shouldUpdateNameFrequencies) {
-                            if (maxCommonDepth() != prevMaxCommonDepth) {
-                                prevMaxCommonDepth = maxCommonDepth()
-                                saveNameFrequency()
-                            }
-                        }
                     }
                     if (!childrenAreTooDeep && childNames) {
                         for (const eachChildName of childNames) {
                             const childName = [currentNode, eachChildName]
+                            // this is an imperfect frequency count (e.g. will double-count things), but is useful
+                            nameFrequency[childName] = (nameFrequency[childName]||0)+1
                             // skip anything effectively too deep
                             if (effectiveDepth(childName) > nextMaxDepth) {
                                 continue
@@ -538,11 +545,22 @@ const maxDepth = 8
                     }
                     
                     // only record at the depth that hasnt been seen before
-                    if (nodeDepth == worker.nextMaxDepth) {
+                    if (nodeDepth == nextMaxDepth) {
+                        const nodeName = currentNode[Name]
+                        numberOfNodesProcessed += 1
+                        if (numberOfNodesProcessed % 800 == 0) {
+                            await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${(((new Date()).getTime()-startTime)/numberOfNodesProcessed).toFixed(2)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts)}`)
+                            if (shouldUpdateNameFrequencies) {
+                                if (minCommonDepth() != prevMinCommonDepth) {
+                                    prevMinCommonDepth = minCommonDepth()
+                                    saveNameFrequency()
+                                }
+                            }
+                        }
                         // save data about this node
                         outputBuffer.push(
                             "- "+JSON.stringify([
-                                attrPath, nodeDepth, childNames, attrErr,
+                                attrPath, nodeDepth, effectiveNodeDepth, childNames, attrErr,
                             ])
                         )
                         if (outputBuffer.length > 1000) {
@@ -551,10 +569,9 @@ const maxDepth = 8
                     }
                 }
             }
-            await workerPromises[worker.index].resolve()
-            console.log(`\n${workerId} finished!:${workerPromises.filter(each=>each.state=="pending").length} remaining`)
+            await deepeningPromises[index].resolve()
             await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
         })())
     }
     const startTime = (new Date()).getTime()
-    await Promise.all(workerPromises).then(()=>Deno.exit(0))
+    await Promise.all(deepeningPromises).then(()=>Deno.exit(0))
