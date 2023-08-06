@@ -526,6 +526,11 @@ const maxDepth = 8
                     }
                     if (!childrenAreTooDeep && childNames) {
                         for (const eachChildName of childNames) {
+                            const childName = [currentNode, eachChildName]
+                            // skip anything effectively too deep
+                            if (effectiveDepth(childName) > nextMaxDepth) {
+                                continue
+                            }
                             frontier.push(
                                 createNode(currentNode, eachChildName)
                             )
