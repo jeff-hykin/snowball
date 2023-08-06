@@ -383,16 +383,17 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
         )
     }
     await FileSystem.write({data: JSON.stringify(frontierInitNodes.map(each=>each.map(each=>each[1])),0,4), path: "frontier_inits.ignore.json"})
+    const workerPromises = workers.map(each=>deferredPromise())
     for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
         const workerId = `worker${worker.index}`
         const exclusiveNames = initialFrontier.map(eachNode=>eachNode[Name])
-        individualIterCounts[workerId] = 0
         ;((async ()=>{
             let nextMaxDepth = 0
             while (nextMaxDepth+1 <= maxDepth) {
                 nextMaxDepth += 1
+                individualIterCounts[workerId] = nextMaxDepth
                 const depthLevels = [
-                    initialFrontier,
+                    [...initialFrontier],
                 ]
                 const getDeepestNode = ()=>{
                     let deepestNode
@@ -414,8 +415,8 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                     }
                     const currentTime = (new Date()).getTime()
                     numberOfNodesProcessed += 1
-                    if (numberOfNodesProcessed % 10 == 0 && worker.index == 0) {
-                        logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node, worker:${worker.index}`)
+                    if (numberOfNodesProcessed % 200 == 0) {
+                        await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
                     }
                     
                     const attrPath = getAttrPath(currentNode)
@@ -430,6 +431,7 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                     // }
                     // // console.debug(`1st attrPath is:`,attrPath)
                     const childDepth = nodeDepth+1
+                    const childDepthLevel = nodeDepth
                     const childrenAreTooDeep = childDepth > nextMaxDepth
                     let attrErr
                     let childNames
@@ -445,14 +447,14 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                     }
                     // // console.debug(`childNames is:`,childNames)
                     if (!childrenAreTooDeep && childNames) {
-                        if (depthLevels[childDepth] == null) {
-                            depthLevels[childDepth] = []
+                        if (depthLevels[childDepthLevel] == null) {
+                            depthLevels[childDepthLevel] = []
                         }
                         for (const eachChildName of childNames) {
                             // console.log(`    here13`)
                             // // console.debug(`eachChildName is:`,eachChildName)
-                            // // console.debug(`childDepth is:`,childDepth)
-                            depthLevels[childDepth].push(
+                            // // console.debug(`childDepthLevel is:`,childDepth)
+                            depthLevels[childDepthLevel].push(
                                 createNode(currentNode, eachChildName)
                             )
                         }
@@ -472,5 +474,8 @@ async function getAttrNames(attrList, practicalRunNixCommand) {
                     }
                 }
             }
+            await workerPromises[worker.index].resolve(true)
+            console.log(`\n${workerId} finished!:${workerPromises.filter(each=>each.state=="pending").length} remaining`)
+            await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${Math.round(((new Date()).getTime()-startTime)/numberOfNodesProcessed)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts,0,4)}`)
         })())
     }
