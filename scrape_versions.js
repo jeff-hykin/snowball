@@ -11,7 +11,7 @@ const nodeListOutputPath = "attr_tree.yaml"
 const nameFrequencyPath = "./attr_name_count.yaml"
 const nameFrequency = yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
 const shouldUpdateNameFrequencies = false
-const numberOfParallelNixProcesses = 240
+const numberOfParallelNixProcesses = 80
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
 
@@ -488,8 +488,11 @@ const maxDepth = 8
                     const nodeName = node[Name]
                     if (nodeName.startsWith("__")) {
                         depth += 2
+                    // hardcoded to make exploring sub-packages easier
+                    } else if (nodeName == "pkgs" || nodeName == "packages" || nodeName.endsWith("Packages")) {
+                        return depth
                     }
-                    depth += Math.log(nameFrequency[nodeName]||1)
+                    depth += Math.log10(nameFrequency[nodeName]||1)
                     return depth
                 }
                 const frontier = new BinaryHeap(
@@ -517,11 +520,11 @@ const maxDepth = 8
                     }
                     if (!childrenAreTooDeep && childNames) {
                         for (const eachChildName of childNames) {
-                            const childName = [currentNode, eachChildName]
+                            const childNode = [currentNode, eachChildName]
                             // this is an imperfect frequency count (e.g. will double-count things), but is useful
-                            nameFrequency[childName] = (nameFrequency[childName]||0)+1
+                            nameFrequency[eachChildName] = (nameFrequency[eachChildName]||0)+1
                             // skip anything effectively too deep
-                            if (effectiveDepth(childName) > worker.nextMaxDepth) {
+                            if (effectiveDepth(childNode) > worker.nextMaxDepth) {
                                 continue
                             }
                             frontier.push(
@@ -546,7 +549,7 @@ const maxDepth = 8
                         // save data about this node
                         outputBuffer.push(
                             "- "+JSON.stringify([
-                                attrPath, nodeDepth, effectiveNodeDepth, childNames, attrErr,
+                                attrPath, nodeDepth, effectiveNodeDepth, nameFrequency[attrPath.slice(-1)[0]], childNames, attrErr,
                             ])
                         )
                         if (outputBuffer.length > 1000) {
