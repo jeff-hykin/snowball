@@ -1,17 +1,28 @@
 import { Parser, parserFromWasm, flatNodeList, addWhitespaceNodes } from "https://deno.land/x/deno_tree_sitter@0.0.8/main.js"
-import { FileSystem } from "https://deno.land/x/quickr@0.6.38/main/file_system.js"
+import { FileSystem, glob } from "https://deno.land/x/quickr@0.6.38/main/file_system.js"
 import { run } from "https://deno.land/x/quickr@0.6.38/main/run.js"
 import nix from "https://github.com/jeff-hykin/common_tree_sitter_languages/raw/4d8a6d34d7f6263ff570f333cdcf5ded6be89e3d/main/nix.js"
 const parser = await parserFromWasm(nix)
 
 const { path: randomizerPath, process } = await startRandomizer("./random.ignore")
 const filePromises = []
-for (const eachFilePath of Deno.args) {
-    filePromises.push(
-        FileSystem.read(eachFilePath).then(
-            (fileString)=>FileSystem.write({ path: eachFilePath, data: addAttrIds(fileString, randomizerPath) })
+
+const path = Deno.args[0]
+const pathInfo = await FileSystem.info(path)
+
+let allItems = [ pathInfo ]
+if (pathInfo.isFolder) {
+    allItems = FileSystem.recursivelyIterateItemsIn(path)
+}
+
+for await (const eachItem of allItems) {
+    if (eachItem.isFile && eachItem.path.endsWith(".nix")) {
+        filePromises.push(
+            FileSystem.read(eachItem.path).then(
+                (fileString)=>FileSystem.write({ path: eachItem.path, data: addAttrIds(fileString, randomizerPath) })
+            )
         )
-    )
+    }
 }
 await Promise.all(filePromises)
 console.log(`killing randomizer process`)
