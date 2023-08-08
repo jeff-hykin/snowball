@@ -2,21 +2,31 @@ import { Parser, parserFromWasm, flatNodeList, addWhitespaceNodes } from "https:
 import { FileSystem } from "https://deno.land/x/quickr@0.6.38/main/file_system.js"
 import { run } from "https://deno.land/x/quickr@0.6.38/main/run.js"
 import nix from "https://github.com/jeff-hykin/common_tree_sitter_languages/raw/4d8a6d34d7f6263ff570f333cdcf5ded6be89e3d/main/nix.js"
+const parser = await parserFromWasm(nix)
 
-
-const { path: randomizerPath } = await startRandomizer("./random.ignore")
+const { path: randomizerPath, process } = await startRandomizer("./random.ignore")
+const filePromises = []
 for (const eachFilePath of Deno.args) {
-    FileSystem.read(eachFilePath).then((fileString)=>{
-        FileSystem.write({ path: eachFilePath, data: addAttrIds(fileString, randomizerPath) })
-    })
+    filePromises.push(
+        FileSystem.read(eachFilePath).then(
+            (fileString)=>FileSystem.write({ path: eachFilePath, data: addAttrIds(fileString, randomizerPath) })
+        )
+    )
 }
-
+await Promise.all(filePromises)
+console.log(`killing randomizer process`)
+console.debug(`process.pid is:`, await process.pid)
+await process.kill()
+await process.kill("SIGKILL")
+await process.kill("SIGTERM")
+Deno.exit(0)
 
 // 
 // creates a file with constantly random values (subprocess)
 // 
 async function startRandomizer(targetPath) {
     const absPath = FileSystem.makeAbsolutePath(targetPath)
+    await FileSystem.ensureIsFolder(FileSystem.parentPath(absPath))
     await FileSystem.remove(absPath)
     const process = run(
         "deno",
@@ -26,22 +36,22 @@ async function startRandomizer(targetPath) {
             const buffer = new Uint8Array(256)
             while (1) {
                 file.readSync(buffer)
-                const myFile = Deno.openSync(${JSON.stringify(absPath)}, { write: true, truncate:true })
+                const myFile = Deno.openSync(${JSON.stringify(absPath)}, { write: true, truncate:true, create: true })
                 await myFile.write(new TextEncoder().encode(buffer))
                 myFile.close()
             }
         `
     )
     // wait on process to create the file
-    await new Promise((resolve, reject)=>{
+    await new Promise(async (resolve, reject)=>{
         while (1) {
             try {
                 const info = await FileSystem.info(absPath)
+                if (info.isFile) {
+                    resolve()
+                }
             } catch (error) {
                 
-            }
-            if (info.isFile) {
-                resolve()
             }
             // sleep
             await new Promise((resolve, reject)=>setTimeout(resolve, 100))
@@ -51,7 +61,7 @@ async function startRandomizer(targetPath) {
 }
 
 
-const parser = await parserFromWasm(nix)
+
 
 /**
  * make attr_sets identifiable
@@ -90,14 +100,15 @@ function* addAttrIds(string, randomOutputFilePath) {
     var root = tree.rootNode
     var allNodes = flatNodeList(root)
     const attrsetExpressionId = 86
+    // const openBracketId = 10
     const whitespaceId = -1
-    const modifiedNodes = []
-    for (const each of allNodes) {
-        if (each.typeId == attrsetExpressionId && each.children.filter(each=>each.typeId!=whitespaceId).length != 2) {
-            each.children[1].children.unshift({
-                text: `__id_static="${Math.random()}";__id_dynamic=builtins.hashFile "sha256" ${randomOutputFilePath});\n`,
-            })
-            modifiedNodes.push(each)
+    const bindingSetId = 91
+    for (const eachNode of allNodes) {
+        if (eachNode.typeId == attrsetExpressionId && eachNode.children.filter(each=>each.typeId!=whitespaceId).length != 2) {
+            const text = `__id_static="${Math.random()}";__id_dynamic=builtins.hashFile "sha256" ${randomOutputFilePath};\n`
+            const bracketNode = eachNode.children.shift()
+            eachNode.children.unshift({text})
+            eachNode.children.unshift(bracketNode)
         }
     }
     let stringBuffer = ""
