@@ -1,0 +1,6 @@
+- nix indexer:
+    - clone nixpkgs
+    - insert random id's into every attr set
+    - use id's in iterative deepening to trim branches
+- nix federalizer:
+    - for 
