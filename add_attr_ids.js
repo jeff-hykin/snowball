@@ -1,30 +1,41 @@
 import { Parser, parserFromWasm, flatNodeList, addWhitespaceNodes } from "https://deno.land/x/deno_tree_sitter@0.0.8/main.js"
+import { zip, concurrentlyTransform, filter } from "https://deno.land/x/good@1.4.4.2/iterable.js"
 import { FileSystem, glob } from "https://deno.land/x/quickr@0.6.38/main/file_system.js"
 import { run } from "https://deno.land/x/quickr@0.6.38/main/run.js"
 import nix from "https://github.com/jeff-hykin/common_tree_sitter_languages/raw/4d8a6d34d7f6263ff570f333cdcf5ded6be89e3d/main/nix.js"
 const parser = await parserFromWasm(nix)
 
 const { path: randomizerPath, process } = await startRandomizer("./random.ignore")
-const filePromises = []
 
 const path = Deno.args[0]
 const pathInfo = await FileSystem.info(path)
 
+const total = (await FileSystem.recursivelyListPathsIn(path)).length
 let allItems = [ pathInfo ]
 if (pathInfo.isFolder) {
     allItems = FileSystem.recursivelyIterateItemsIn(path)
 }
 
-for await (const eachItem of allItems) {
-    if (eachItem.isFile && eachItem.path.endsWith(".nix")) {
-        filePromises.push(
-            FileSystem.read(eachItem.path).then(
-                (fileString)=>FileSystem.write({ path: eachItem.path, data: addAttrIds(fileString, randomizerPath) })
-            )
-        )
-    }
+// const balacncedConcurrency = ({ iterator, poolLimit, awaitAll, })
+let count = 0
+for await (const each of concurrentlyTransform({
+        iterator: filter(allItems, (each)=>each.isFile&&each.path.endsWith(".nix")),
+        poolLimit: 20,
+        transformFunction: (eachItem)=>FileSystem.read(eachItem.path).then(
+            (fileString)=>{
+                count += 1
+                console.log(`transforming: ${count}/${total} ${eachItem.path}`)
+                return FileSystem.write({
+                    path: eachItem.path,
+                    data: addAttrIds(fileString, randomizerPath) 
+                })
+            }
+        ),
+    })
+) {
+    // do nothing, just need to iterate them
 }
-await Promise.all(filePromises)
+
 console.log(`killing randomizer process`)
 console.debug(`process.pid is:`, await process.pid)
 await process.kill()
