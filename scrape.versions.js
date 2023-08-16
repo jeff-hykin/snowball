@@ -204,8 +204,11 @@ const textEncoder = new TextEncoder()
 
         return { runNixCommand, practicalRunNixCommand, send, write }
     }
-    const seed = 0
+    const seed = 10
     const hash = (str) => {
+        if (str == null) {
+            return null
+        }
         let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
         for(let i = 0, ch; i < str.length; i++) {
             ch = str.charCodeAt(i);
@@ -389,7 +392,7 @@ const textEncoder = new TextEncoder()
 // 
 // node setup
 // 
-    let childrenHaveBeenExplored = new Set()
+    let childrenHaveBeenExplored = {}
     let numberOfNodes = 0
     const Parent = 0
     const Name = 1
@@ -470,7 +473,7 @@ const textEncoder = new TextEncoder()
                 const currentTime = (new Date()).getTime()
                 try {
                     //await logLine(`nodeCount: ${numberOfNodesProcessed}, spending ${Math.round((currentTime-startTime)/numberOfNodesProcessed)}ms per node`)
-                    await savingSystem.mainLoggingFile.write(new TextEncoder().encode(bufferChunk.join("\n")))
+                    await savingSystem.mainLoggingFile.write(new TextEncoder().encode(bufferChunk.join("\n")+"\n"))
                 } catch (error) {
                     console.debug(`error is:`,error)
                 }
@@ -491,7 +494,7 @@ const textEncoder = new TextEncoder()
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
     await Promise.all(workers.map(each=>each.initFinished))
-    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0]
+    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0].slice(0,200) // FIXME: debugging only
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
         frontierInitNodes[index%numberOfParallelNixProcesses].push(
@@ -509,6 +512,14 @@ const textEncoder = new TextEncoder()
             worker.nextMaxDepth = 0
             while (worker.nextMaxDepth+1 <= maxDepth) {
                 worker.nextMaxDepth += 1
+                if (!childrenHaveBeenExplored[worker.nextMaxDepth]) {
+                    childrenHaveBeenExplored[worker.nextMaxDepth] = new Set()
+                }
+                // helping the garbage collector out
+                if (workers.every(each=>each.nextMaxDepth > worker.nextMaxDepth)) {
+                    delete childrenHaveBeenExplored[worker.nextMaxDepth-1]
+                }
+                const childrenHaveBeenExploredAtThisLevel = childrenHaveBeenExplored[worker.nextMaxDepth]
                 individualIterCounts[workerId] = worker.nextMaxDepth
                 console.debug(`worker${worker.index}.nextMaxDepth is:`,worker.nextMaxDepth)
                 const effectiveDepth = (node)=>{
@@ -516,12 +527,7 @@ const textEncoder = new TextEncoder()
                     const nodeName = node[Name]
                     if (nodeName.startsWith("__")) {
                         depth += 2
-                    // hardcoded to make exploring sub-packages easier
                     }
-                    // else if (nodeName == "pkgs" || nodeName == "packages" || nodeName.endsWith("Packages")) {
-                    //     return depth
-                    // }
-                    // depth += Math.log10(nameFrequency[nodeName]||1)
                     return depth
                 }
                 const frontier = new BinaryHeap(
@@ -545,6 +551,10 @@ const textEncoder = new TextEncoder()
                     var nodePositionInfo
                     try {
                         var [childNames, nodePositionInfo] = await worker.getAttrNamesAndId(attrPath)
+                        // short string to save space
+                        if (nodePositionInfo?.file) {
+                            nodePositionInfo.file = nodePositionInfo.file.slice(sourcePrefixLength,)
+                        }
                     } catch (error) {
                         attrErr = error.message
                     }
@@ -552,10 +562,12 @@ const textEncoder = new TextEncoder()
                         // the nextMaxDepth is very important, because these nodes must be
                         // re-explored every time it increases, and (thankfully) it 
                         // doesn't matter which worker is exploring them 
-                        const nodeId = hash(nodePositionInfo+`${worker.nextMaxDepth}`)
-                        const alreadyExploredAtThisDepth = childrenHaveBeenExplored.has(nodeId)
-                        childrenHaveBeenExplored.add(nodeId)
-                        if (!alreadyExploredAtThisDepth && childNames) {
+                        // const nodeName = currentNode[Name]
+                        const nodeId = hash(JSON.stringify(nodePositionInfo))
+                        // const alreadyExploredAtThisDepth = childrenHaveBeenExploredAtThisLevel.has(nodeId)
+                        // console.debug(`    node: ${nodeName}: depth: ${worker.nextMaxDepth}: nodeId:${nodeId} alreadyExplored? ${alreadyExploredAtThisDepth}: ${JSON.stringify(nodePositionInfo)}`,)
+                        childrenHaveBeenExploredAtThisLevel.add(nodeId)
+                        if (childNames) {
                             for (const eachChildName of childNames) {
                                 const childNode = [currentNode, eachChildName]
                                 // this is an imperfect frequency count (e.g. will double-count things), but is useful
@@ -584,10 +596,6 @@ const textEncoder = new TextEncoder()
                                 }
                             }
                         }
-                        // short string to save space
-                        if (nodePositionInfo?.file) {
-                            nodePositionInfo.file = nodePositionInfo.file.slice(sourcePrefixLength,)
-                        }
                         // save data about this node
                         outputBuffer.push(
                             "- "+JSON.stringify([
@@ -595,7 +603,7 @@ const textEncoder = new TextEncoder()
                                 attrPath, nodeDepth, effectiveNodeDepth, nodePositionInfo, childNames, attrErr,
                             ])
                         )
-                        if (outputBuffer.length > 1000) {
+                        if (outputBuffer.length > 1) {
                             await savingSystem.flushBuffer()
                         }
                     }
