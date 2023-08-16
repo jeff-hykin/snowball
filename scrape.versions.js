@@ -9,9 +9,9 @@ import { generateKeys, encrypt, decrypt, hashers } from "https://deno.land/x/goo
 
 const waitTime = 100 // miliections
 const nodeListOutputPath = "attr_tree.yaml"
-const nameFrequencyPath = "./attr_name_count.yaml"
-const nameFrequency = yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
-const shouldUpdateNameFrequencies = false
+const nameFrequencyPath = "./attr_name_count.ignore.yaml"
+let nameFrequency = {} // yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
+const shouldUpdateNameFrequencies = true
 const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
@@ -31,6 +31,7 @@ const childrenToIgnore = [
     "applicationName",
     "args",
     "AUTOMATED_TESTING",
+    "baseName",
     "basicEnv",
     "bin",
     "buildAndTestSubdir",
@@ -48,7 +49,9 @@ const childrenToIgnore = [
     "cargoCheckType",
     "cargoDepsName",
     "cargoSha256",
+    "CFLAGS",
     "CGO_ENABLED",
+    "checkFlags",
     "checkPhase",
     "checkTarget",
     "cmakeFlags",
@@ -60,6 +63,9 @@ const childrenToIgnore = [
     "configureScript",
     "CSC_OPTIONS",
     "curlOpts",
+    "CXXFLAGS",
+    "darwinMinVersion",
+    "darwinMinVersionVariable",
     "depsBuildBuild",
     "depsBuildBuildPropagated",
     "depsBuildTarget",
@@ -71,26 +77,32 @@ const childrenToIgnore = [
     "dev",
     "disabledTests",
     "disallowedReferences",
+    "distPhase",
     "doCheck",
     "doInstallCheck",
     "dontAddStaticConfigureFlags",
     "dontAutoPatchelf",
     "dontBuild",
+    "dontConfigure",
     "dontDisableStatic",
     "dontFixLibtool",
     "dontFixup",
     "dontInstall",
     "dontNpmInstall",
     "dontPatchELF",
+    "dontPatchShebangs",
     "dontStrip",
     "dontUnpack",
     "dontUpdateAutotoolsGnuConfigScripts",
     "dontUseCmakeConfigure",
     "dontUseImakeConfigure",
     "dontUseMesonConfigure",
+    "dontWrapGApps",
+    "dontWrapQtApps",
     "downloadToTemp",
     "drvAttrs",
     "drvPath",
+    "emacsBufferSetup",
     "enableParallelBuilding",
     "enableParallelChecking",
     "executable",
@@ -99,10 +111,14 @@ const childrenToIgnore = [
     "executablePkgconfigDepends",
     "executableSystemDepends",
     "executableToolDepends",
+    "expand-response-params",
+    "expandResponseParams",
     "extraLibraries",
     "extraNativeBuildInputs",
+    "fixupPhase",
     "getBuildInputs",
     "getCabalDeps",
+    "go-modules",
     "GO111MODULE",
     "GO386",
     "GOARCH",
@@ -115,20 +131,40 @@ const childrenToIgnore = [
     "haddockDir",
     "haddockPhase",
     "hardeningDisable",
+    "hasCC",
     "hash",
+    "ignoreCollisions",
     "impureEnvVars",
     "includeDirs",
     "inputDerivation",
     "installCheckPhase",
+    "installCheckTarget",
     "installFlags",
     "installPhase",
     "installTargets",
+    "is32bit",
+    "is64bit",
+    "isAarch32",
+    "isAarch64",
+    "isBigEndian",
+    "isBSD",
+    "isClang",
+    "isCygwin",
     "isDarwin",
+    "isFreeBSD",
+    "isGNU",
     "isHardened",
     "isHaskellLibrary",
+    "isLinux",
+    "isMips",
+    "isOpenBSD",
+    "isx86_64",
     "LANG",
     "LC_ALL",
     "ldflags",
+    "LDFLAGS",
+    "libPath",
+    "libPrefix",
     "libraryFrameworkDepends",
     "libraryHaskellDepends",
     "libraryPkgconfigDepends",
@@ -137,11 +173,14 @@ const childrenToIgnore = [
     "MACH_USE_SYSTEM_PYTHON",
     "makeFlags",
     "makeWrapperArgs",
+    "mesonFlags",
     "meta",
     "mirrorsFile",
+    "mkDerivation",
     "name",
     "nativeBuildInputs",
     "nativePrefix",
+    "newScope",
     "NIX_CFLAGS_COMPILE",
     "NIX_HARDENING_ENABLE",
     "NIX_LDFLAGS",
@@ -155,6 +194,7 @@ const childrenToIgnore = [
     "outputHashMode",
     "outputName",
     "outputs",
+    "outputSpecified",
     "override",
     "overrideAttrs",
     "overrideDerivation",
@@ -180,14 +220,18 @@ const childrenToIgnore = [
     "postFixup",
     "postHook",
     "postInstall",
+    "postInstallCheck",
     "postPatch",
     "postUnpack",
+    "preAutoreconf",
     "preBuild",
+    "preCheck",
     "preConfigure",
     "preConfigurePhases",
     "preferHashedMirrors",
     "preferLocalBuild",
     "preFixup",
+    "preHook",
     "preInstall",
     "preInstallPhases",
     "prePatch",
@@ -199,10 +243,12 @@ const childrenToIgnore = [
     "pythonImportsCheck",
     "pythonModule",
     "pythonPath",
+    "pythonVersion",
     "qmakeFlags",
     "QTDIR",
     "qtInputs",
     "reconstructLock",
+    "recurseForDerivations",
     "removeLocal",
     "renameImports",
     "requiredPythonModules",
@@ -211,7 +257,9 @@ const childrenToIgnore = [
     "setupCompilerEnvironmentPhase",
     "setupHaskellDepends",
     "setupHook",
+    "setupHooks",
     "shellHook",
+    "shellPath",
     "showOption",
     "showURLs",
     "sourceRoot",
@@ -219,15 +267,31 @@ const childrenToIgnore = [
     "SSL_CERT_FILE",
     "stdenv",
     "strictDeps",
+    "suffixSalt",
     "system",
+    "targetPrefix",
     "tests",
     "type",
     "unpackPhase",
     "updateScript",
+    "urls",
     "userHook",
+    "vendorSha256",
+    "withPackages",
+    "wrapperName",
     // "pname",
     // "version",
 ]
+
+const shallowSortObject = (obj) => {
+    return Object.entries(obj).sort(([_,a],[__, b])=>(a||0)-(b||0)).reduce(
+        (newObj, [key, value]) => { 
+            newObj[key] = value; 
+            return newObj
+        }, 
+        {}
+    )
+}
 
 
 // TOOD:
@@ -660,6 +724,7 @@ const childrenToIgnore = [
 // save system
 // 
     const saveNameFrequency = ()=>{
+        nameFrequency = shallowSortObject(nameFrequency)
         function* generateLines() {
             for (const [key, value] of Object.entries(nameFrequency)) {
                 yield `${yaml.stringify(key).replace(/\n$/,"")}: ${yaml.stringify(value)}`
@@ -764,6 +829,13 @@ const childrenToIgnore = [
                     try {
                         var [childNames, nodePositionInfo] = await worker.getAttrNamesAndId(attrPath)
                         childNames = childNames.filter(each=>!childrenToIgnore.includes(each))
+                        const nodeName = currentNode[Name]
+                        if (childNames.length != 0) {
+                            nameFrequency[nodeName] = NaN
+                        }
+                        if (childNames.length == 0 && (nameFrequency[nodeName]===nameFrequency[nodeName])) {
+                            nameFrequency[nodeName] = (nameFrequency[nodeName]||0)+1
+                        }
                         // short string to save space
                         if (nodePositionInfo?.file) {
                             nodePositionInfo.file = nodePositionInfo.file.slice(sourcePrefixLength,)
@@ -802,14 +874,14 @@ const childrenToIgnore = [
                     if (nodeDepth == worker.nextMaxDepth) {
                         const nodeName = currentNode[Name]
                         numberOfNodesProcessed += 1
-                        if (numberOfNodesProcessed % 800 == 0) {
+                        if (numberOfNodesProcessed % 1500 == 0) {
                             await logLine(`numberOfNodesProcessed:${numberOfNodesProcessed}, spending ${(((new Date()).getTime()-startTime)/numberOfNodesProcessed).toFixed(2)}ms per node, currentDepths:\n${JSON.stringify(individualIterCounts)}`)
-                            if (shouldUpdateNameFrequencies) {
-                                if (minCommonDepth() != prevMinCommonDepth) {
-                                    prevMinCommonDepth = minCommonDepth()
-                                    saveNameFrequency()
-                                }
-                            }
+                            saveNameFrequency()
+                            // if (shouldUpdateNameFrequencies) {
+                            //     if (minCommonDepth() != prevMinCommonDepth) {
+                            //         prevMinCommonDepth = minCommonDepth()
+                            //     }
+                            // }
                         }
                         // save data about this node
                         outputBuffer.push(
