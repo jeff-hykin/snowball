@@ -5,15 +5,17 @@ import { BinaryHeap, ascend, descend } from "https://deno.land/x/good@1.4.4.1/bi
 import { deferredPromise } from "https://deno.land/x/good@1.4.4.1/async.js"
 import { enumerate, count, zip, iter, next } from "https://deno.land/x/good@1.4.4.1/iterable.js"
 import * as yaml from "https://deno.land/std@0.168.0/encoding/yaml.ts"
+import { generateKeys, encrypt, decrypt, hashers } from "https://deno.land/x/good@1.4.4.3/encryption.js"
 
 const waitTime = 100 // miliections
 const nodeListOutputPath = "attr_tree.yaml"
 const nameFrequencyPath = "./attr_name_count.yaml"
 const nameFrequency = yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
 const shouldUpdateNameFrequencies = false
-const numberOfParallelNixProcesses = 80
+const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
+const textEncoder = new TextEncoder()
 
 
 // TOOD:
@@ -202,25 +204,25 @@ const maxDepth = 8
 
         return { runNixCommand, practicalRunNixCommand, send, write }
     }
-
+    const seed = 0
+    const hash = (str) => {
+        let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+        for(let i = 0, ch; i < str.length; i++) {
+            ch = str.charCodeAt(i);
+            h1 = Math.imul(h1 ^ ch, 2654435761);
+            h2 = Math.imul(h2 ^ ch, 1597334677);
+        }
+        h1  = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+        h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+        h2  = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+        h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    
+        return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+    }
     var escapeNixString = (string)=>{
         return `"${string.replace(/\$\{|[\\"]/g, '\\$&').replace(/\u0000/g, '\\0')}"`
     }
-
-    /**
-     * @example
-     *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
-     *     // [] 
-     *     // non-attrset values return empty lists
-     * 
-     *     await getAttrNames("builtins", practicalRunNixCommand)
-     *     // [ "abort", "add", "addErrorContext", ... ]
-     *
-     *     await getAttrNames(["builtins"], practicalRunNixCommand)
-     *     // [ "abort", "add", "addErrorContext", ... ]
-     *
-     */
-    async function getAttrNames(attrList, practicalRunNixCommand) {
+    var attrListToNix = (attrList)=>{
         if (typeof attrList == 'string') {
             attrList = [attrList]
         }
@@ -230,19 +232,42 @@ const maxDepth = 8
         } else {
             attrString = attrList[0]+"."+(attrList.slice(1,).map(escapeNixString).join("."))
         }
+        return attrString
+    }
+
+    /**
+     * @example
+     *     await getAttrNamesAndId(["builtins", "nixVersion"], practicalRunNixCommand)
+     *     // [] 
+     *     // non-attrset values return empty lists
+     * 
+     *     await getAttrNamesAndId("builtins", practicalRunNixCommand)
+     *     // [ "abort", "add", "addErrorContext", ... ]
+     *
+     *     await getAttrNamesAndId(["builtins"], practicalRunNixCommand)
+     *     // [ "abort", "add", "addErrorContext", ... ]
+     *
+     */
+    async function getAttrNamesAndId(attrList, practicalRunNixCommand) {
+        const fullAttrList = attrListToNix(attrList)
+        const lastAttr = escapeNixString(attrList.pop())
+        const parentAttrList = attrList.length == 0 ? "{}" : attrListToNix(attrList)
         const command = `
             (builtins.trace
-                (
-                    if
-                        (builtins.isAttrs (${attrString}))
-                    then 
-                        (builtins.toJSON
-                            (builtins.attrNames
-                                (${attrString})
-                            )
+                (builtins.toJSON
+                    [
+                        (
+                            if
+                                (builtins.isAttrs (${fullAttrList}))
+                            then 
+                                (builtins.attrNames
+                                    (${fullAttrList})
+                                )
+                            else
+                                ([])
                         )
-                    else
-                        (builtins.toJSON [])
+                        (builtins.unsafeGetAttrPos ${lastAttr} ${parentAttrList})
+                    ]
                 )
                 null
             )
@@ -254,7 +279,7 @@ const maxDepth = 8
             throw Error(stderr)
         }
     }
-
+    
     /**
      * @example
      *     await getAttrNames(["builtins", "nixVersion"], practicalRunNixCommand)
@@ -364,6 +389,7 @@ const maxDepth = 8
 // 
 // node setup
 // 
+    let childrenHaveBeenExplored = new Set()
     let numberOfNodes = 0
     const Parent = 0
     const Name = 1
@@ -405,11 +431,11 @@ const maxDepth = 8
             this.initFinished = this.send(`pkgs = import <nixpkgs> {}`)
             console.log(`worker${this.index} created`)
         }
-        async getAttrNames(attrList) {
+        async getAttrNamesAndId(attrList) {
             // console.log(`worker ${this.index} is working on a job`)
             const attrPath = ["pkgs", ...attrList]
             // // console.debug(`attrPath is:`,attrPath)
-            const output = await getAttrNames(attrPath, this.practicalRunNixCommand)
+            const output = await getAttrNamesAndId(attrPath, this.practicalRunNixCommand)
             // console.log(`worker ${this.index} is finished job`)
             return output
         }
@@ -465,7 +491,7 @@ const maxDepth = 8
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
     await Promise.all(workers.map(each=>each.initFinished))
-    const rootAttrNames = await workers[0].getAttrNames([])
+    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0]
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
         frontierInitNodes[index%numberOfParallelNixProcesses].push(
@@ -475,6 +501,7 @@ const maxDepth = 8
     const workerPromises = workers.map(each=>deferredPromise())
     let prevMinCommonDepth = 0
     const minCommonDepth = ()=>Math.min(...workers.map(each=>each.nextMaxDepth))
+    const sourcePrefixLength = "/nix/store/mwyfaz3406rhdi91ynv93qhj0smyi0kh-source/".length // note: hash shouldn't change length
     for (const [worker, initialFrontier] of zip(workers, frontierInitNodes)) {
         const workerId = `worker${worker.index}`
         const exclusiveNames = initialFrontier.map(eachNode=>eachNode[Name])
@@ -483,16 +510,18 @@ const maxDepth = 8
             while (worker.nextMaxDepth+1 <= maxDepth) {
                 worker.nextMaxDepth += 1
                 individualIterCounts[workerId] = worker.nextMaxDepth
+                console.debug(`worker${worker.index}.nextMaxDepth is:`,worker.nextMaxDepth)
                 const effectiveDepth = (node)=>{
                     let depth = getDepth(node)
                     const nodeName = node[Name]
                     if (nodeName.startsWith("__")) {
                         depth += 2
                     // hardcoded to make exploring sub-packages easier
-                    } else if (nodeName == "pkgs" || nodeName == "packages" || nodeName.endsWith("Packages")) {
-                        return depth
                     }
-                    depth += Math.log10(nameFrequency[nodeName]||1)
+                    // else if (nodeName == "pkgs" || nodeName == "packages" || nodeName.endsWith("Packages")) {
+                    //     return depth
+                    // }
+                    // depth += Math.log10(nameFrequency[nodeName]||1)
                     return depth
                 }
                 const frontier = new BinaryHeap(
@@ -512,24 +541,33 @@ const maxDepth = 8
                     const childDepth = nodeDepth+1
                     const childrenAreTooDeep = childDepth > worker.nextMaxDepth
                     let attrErr
-                    let childNames
+                    var childNames
+                    var nodePositionInfo
                     try {
-                        childNames = await worker.getAttrNames(attrPath)
+                        var [childNames, nodePositionInfo] = await worker.getAttrNamesAndId(attrPath)
                     } catch (error) {
                         attrErr = error.message
                     }
-                    if (!childrenAreTooDeep && childNames) {
-                        for (const eachChildName of childNames) {
-                            const childNode = [currentNode, eachChildName]
-                            // this is an imperfect frequency count (e.g. will double-count things), but is useful
-                            nameFrequency[eachChildName] = (nameFrequency[eachChildName]||0)+1
-                            // skip anything effectively too deep
-                            if (effectiveDepth(childNode) > worker.nextMaxDepth) {
-                                continue
+                    if (!childrenAreTooDeep) {
+                        // the nextMaxDepth is very important, because these nodes must be
+                        // re-explored every time it increases, and (thankfully) it 
+                        // doesn't matter which worker is exploring them 
+                        const nodeId = hash(nodePositionInfo+`${worker.nextMaxDepth}`)
+                        const alreadyExploredAtThisDepth = childrenHaveBeenExplored.has(nodeId)
+                        childrenHaveBeenExplored.add(nodeId)
+                        if (!alreadyExploredAtThisDepth && childNames) {
+                            for (const eachChildName of childNames) {
+                                const childNode = [currentNode, eachChildName]
+                                // this is an imperfect frequency count (e.g. will double-count things), but is useful
+                                nameFrequency[eachChildName] = (nameFrequency[eachChildName]||0)+1
+                                // skip anything effectively too deep
+                                if (effectiveDepth(childNode) > worker.nextMaxDepth) {
+                                    continue
+                                }
+                                frontier.push(
+                                    createNode(currentNode, eachChildName)
+                                )
                             }
-                            frontier.push(
-                                createNode(currentNode, eachChildName)
-                            )
                         }
                     }
                     
@@ -546,10 +584,15 @@ const maxDepth = 8
                                 }
                             }
                         }
+                        // short string to save space
+                        if (nodePositionInfo?.file) {
+                            nodePositionInfo.file = nodePositionInfo.file.slice(sourcePrefixLength,)
+                        }
                         // save data about this node
                         outputBuffer.push(
                             "- "+JSON.stringify([
-                                attrPath, nodeDepth, effectiveNodeDepth, nameFrequency[attrPath.slice(-1)[0]], childNames, attrErr,
+                                // attrPath, nodeDepth, effectiveNodeDepth, nameFrequency[attrPath.slice(-1)[0]], childNames, attrErr,
+                                attrPath, nodeDepth, effectiveNodeDepth, nodePositionInfo, childNames, attrErr,
                             ])
                         )
                         if (outputBuffer.length > 1000) {
