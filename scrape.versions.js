@@ -494,7 +494,7 @@ const textEncoder = new TextEncoder()
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
     await Promise.all(workers.map(each=>each.initFinished))
-    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0].slice(0,200) // FIXME: debugging only
+    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0]
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
         frontierInitNodes[index%numberOfParallelNixProcesses].push(
