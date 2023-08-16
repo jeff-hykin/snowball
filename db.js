@@ -1,3 +1,4 @@
+import { hashers } from "https://deno.land/x/good@1.4.4.3/encryption.js"
 import Surreal from "https://deno.land/x/surrealdb/mod.ts"
 
 // surreal start --user root --pass root
@@ -11,7 +12,24 @@ await db.signin({
 
 // Select a specific namespace / database
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
-await db.use(nixpkgsHash, `macOS_m1`)
+await db.use("nixDb", `nixDb`)
+
+
+// - [["onestepback","srcs"],2,2,{"column":3,"file":"pkgs/data/themes/onestepback/default.nix","line":7},[],null]
+async function attrInfo({ path, positionInfo, childNames, nixpkgsHash, unixEpochOfCommit, os, errMessage,}) {
+    const id = await hashers.sha256(JSON.stringify(path))
+    Promise.all([
+        await db.create("attrEntry", {
+            identifier: id,
+            positionInfo,
+            childNames,
+        }),
+        await db.create("hashExistanceEntry", {
+            attrEntryId: id,
+            nixpkgsHash,
+        })
+    ])
+}
 
 
 // // Create a new person with a random id
