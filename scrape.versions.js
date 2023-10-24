@@ -9,6 +9,7 @@ import { generateKeys, encrypt, decrypt, hashers } from "https://deno.land/x/goo
 
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
+const startPath = [] // empty means start at root. A value like ["perl", "pkgs"] would start at nixpkgs.perl.pkgs
 const numberOfParallelNixProcesses = 40
 
 const childrenToIgnore = [
@@ -892,7 +893,7 @@ const shallowSortObject = (obj) => {
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
     await Promise.all(workers.map(each=>each.initFinished))
-    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0]
+    const rootAttrNames = (await workers[0].getAttrNamesAndId(startPath))[0]
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
         frontierInitNodes[index%numberOfParallelNixProcesses].push(
