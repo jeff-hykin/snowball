@@ -7,16 +7,10 @@ import { enumerate, count, zip, iter, next } from "https://deno.land/x/good@1.4.
 import * as yaml from "https://deno.land/std@0.168.0/encoding/yaml.ts"
 import { generateKeys, encrypt, decrypt, hashers } from "https://deno.land/x/good@1.4.4.3/encryption.js"
 
-const waitTime = 100 // miliections
-const nodeListOutputPath = "attr_tree.yaml"
-const nameFrequencyPath = "./attr_name_count.ignore.yaml"
-let nameFrequency = {} // yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
-const shouldUpdateNameFrequencies = true
-const numberOfParallelNixProcesses = 40
 var nixpkgsHash = `aa0e8072a57e879073cee969a780e586dbe57997`
 const maxDepth = 8
-const textEncoder = new TextEncoder()
-const uniquePackages = {}
+const startPath = [] // empty means start at root. A value like ["perl", "pkgs"] would start at nixpkgs.perl.pkgs
+const numberOfParallelNixProcesses = 40
 
 const childrenToIgnore = [
     "__darwinAllowLocalNetworking",
@@ -401,6 +395,15 @@ const childrenToIgnore = [
     // "pname",
     // "version",
 ]
+
+const nodeListOutputPath = "attr_tree.yaml"
+const nameFrequencyPath = "./attr_name_count.ignore.yaml"
+let nameFrequency = {} // yaml.parse(await FileSystem.read(nameFrequencyPath)||"{}")
+const shouldUpdateNameFrequencies = true
+
+const textEncoder = new TextEncoder()
+const uniquePackages = {}
+const waitTime = 100 // miliections
 
 const shallowSortObject = (obj) => {
     return Object.entries(obj).sort(([_,a],[__, b])=>(a||0)-(b||0)).reduce(
@@ -890,7 +893,7 @@ const shallowSortObject = (obj) => {
     
     const workers = [...Array(numberOfParallelNixProcesses)].map(each=>new Worker(nixpkgsHash))
     await Promise.all(workers.map(each=>each.initFinished))
-    const rootAttrNames = (await workers[0].getAttrNamesAndId([]))[0]
+    const rootAttrNames = (await workers[0].getAttrNamesAndId(startPath))[0]
     const frontierInitNodes = [...Array(numberOfParallelNixProcesses)].map(each=>[])
     for (const [index, eachAttrName] of enumerate(rootAttrNames)) {
         frontierInitNodes[index%numberOfParallelNixProcesses].push(
