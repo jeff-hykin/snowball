@@ -1,5 +1,5 @@
 {
     description = "URL for Null";
     inputs = {};
-    outputs = inputs: null;
+    outputs = inputs: {};
 }
